@@ -66,7 +66,7 @@ def normalise(df, column_info):
 
 # LOAD DATA ###################################################################
 # Dataframe
-df = pd.read_csv('siren_data_train.csv')
+df = pd.read_csv('../siren_data_train.csv')
 
 # Variables
 NUM_ROWS = len(df.index)
