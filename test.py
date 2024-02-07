@@ -11,7 +11,7 @@ TRAIN_RATIO = 0.8
 column_norm_selector = {
 #	'near_fid':'minmax', 	# categorical
 	'near_angle':'minmax',	# Uniform on x \in [-180,180]
-	'dist':'stdev',			# Two peaks, seemingly normally distributed
+	'log_dist':'minmax',	# Two peaks, seemingly normally distributed
 	'age':'minmax',			# Almost uniform on x \in [20,80]
 	'heard':None,			# label: N/A
 	'building':None,		# bool
@@ -82,7 +82,7 @@ dist_x = df.pop('near_x') - df.pop('xcoor')
 dist_y = df.pop('near_y') - df.pop('ycoor')
 dist = np.sqrt(dist_x**2 + dist_y**2)
 #print(df)
-df['dist'] = dist
+df['log_dist'] = np.log(dist)
 
 df = df[column_norm_selector.keys()]
 print(df.columns)
