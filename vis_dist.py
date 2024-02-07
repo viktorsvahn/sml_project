@@ -21,18 +21,31 @@ ids = df.pop('near_fid')
 dist_x = df.pop('near_x') - df.pop('xcoor')
 dist_y = df.pop('near_y') - df.pop('ycoor')
 dist = np.sqrt(dist_x**2 + dist_y**2)
+log_dist = np.log(dist)
+maxlogdist = max(log_dist)
+minlogdist = min(log_dist)
+minmax_log_dist = 2*((log_dist-minlogdist)/(maxlogdist - minlogdist)) -1
 #print(df)
-df['dist'] = dist
+df['log_dist'] = log_dist
+df['minmax_log_dist'] = minmax_log_dist
 #print(df)
 print(df.columns)
 
-# PLOTTING ####################################################################
-fig, ax = plt.subplots(figsize=(3.3,3.3))
+l = ['log_dist', 'minmax_log_dist']
 
-NBINS = 50
-ax.set_title(f'NUM_BINS={NBINS}')
-ax.set_xlabel('$\\log(\\text{dist})$')
-ax.hist(np.log(df['dist']), bins=NBINS, density=True)
+# PLOTTING ####################################################################
+fig, axs = plt.subplots(1,2, figsize=(6.6,3.3))
+axs = axs.ravel()
+
+for i, ax in enumerate(axs):
+
+	NBINS = 50
+	ax.set_title(f'NUM_BINS={NBINS}')
+	if i == 0:
+		ax.set_xlabel('$\\log(\\text{dist})$')
+	else:
+		ax.set_xlabel('Scaled $\\log(\\text{dist})$')
+	ax.hist(df[l[i]], bins=NBINS, density=True)
 
 
 plt.tight_layout()
