@@ -9,19 +9,19 @@ import matplotlib.pyplot as plt
 TRAIN_RATIO = 0.8
 
 column_norm_selector = {
-	'near_fid':'minmax',
-	'near_x':'minmax',
-	'near_y':'minmax',
-	'near_angle':'minmax',
-	'heard':'minmax',
-	'building':None,
-	'xcoor':'minmax',
-	'ycoor':'minmax',
-	'noise':None,
-	'in_vehicle':None,
-#	'asleep':None,
-	'no_windows':None,
-	'age':'minmax',
+	'near_fid':'minmax', 	# wide range of x-values, oscillating frequency 
+	'near_x':'stdev',		# sharp peak halfway
+	'near_y':'stdev',		# sharp peak almost halfway
+	'near_angle':'minmax',	# Uniform on x \in [-180,180]
+	'heard':'minmax',		# label: N/A
+	'building':None,		# bool
+	'xcoor':'stdev',		# sharp peak halfway
+	'ycoor':'stdev',		# sharp peak halfway
+	'noise':None,			# bool
+	'in_vehicle':None,		# bool
+#	'asleep':None,			# bool
+	'no_windows':None,		# bool
+	'age':'minmax',			# Almost uniform on x \in [20,80]
 }
 
 # Fixed random seed for reproducibility
@@ -29,9 +29,9 @@ np.random.seed(123456)
 
 
 # FUNCTIONS ###################################################################
-def normalise(df, column_info):
+def feature_rescale(df, column_info):
 	"""Given a dataframe and a column->norm-type map, returns a new dataframe
-	with features normalised accordingly."""
+	with features rescaled accordingly."""
 	temp_df = copy.deepcopy(df)
 	
 	for i, col in enumerate(temp_df):
@@ -48,6 +48,9 @@ def normalise(df, column_info):
 
 		elif norm_type == 'exp':
 			xnorm = np.exp(x)
+
+		elif norm_type == 'root':
+			xnorm = np.sqrt(x)
 
 		elif norm_type == 'stdev':
 			mu = np.mean(x)
@@ -101,8 +104,8 @@ test_df = df[NUM_TRAIN:]
 #print(test_df, test_labels)
 
 
-# NORMALISE AND ZERO-CENTRE FEATURES 
-train_df = normalise(train_df, column_norm_selector)
-test_df = normalise(test_df, column_norm_selector)
+# feature_rescale AND ZERO-CENTRE FEATURES 
+train_df = feature_rescale(train_df, column_norm_selector)
+test_df = feature_rescale(test_df, column_norm_selector)
 #print(train_df, train_labels)
 
