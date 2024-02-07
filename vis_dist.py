@@ -6,29 +6,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # CONTROL VARIABLES/OBJECTS ###################################################
-TRAIN_RATIO = 0.8
 
-column_bin_selector = {
-#	'near_fid':50,
-	'dist':50,
-	'near_angle':50,
-#	'heard':None,
-	'building':None,
-	'noise':None,
-	'in_vehicle':None,
-	'asleep':None,
-	'no_windows':None,
-	'age':70,
-}
 
 # LOAD DATA ###################################################################
 # Dataframe
 df = pd.read_csv('siren_data_train.csv')
 
-# Variables
-NUM_ROWS = len(df.index)
-NUM_TRAIN = int(NUM_ROWS*TRAIN_RATIO)
-NUM_TEST = NUM_ROWS-NUM_TRAIN
 
 
 # PRE-PROCESSING ##############################################################
@@ -44,16 +27,12 @@ df['dist'] = dist
 print(df.columns)
 
 # PLOTTING ####################################################################
-fig, axs = plt.subplots(2,4, figsize=(11,5))
-axs = axs.ravel()
+fig, ax = plt.subplots(figsize=(3.3,3.3))
 
-for i, col in enumerate(df.columns):
-	ax = axs[i]
-	nbins = column_bin_selector[col]
-	if nbins == None: nbins = 10
-	ax.set_title(f'NUM_BINS={nbins}')
-	ax.set_xlabel(col)
-	ax.hist(df[col], bins=nbins, density=True)
+NBINS = 50
+ax.set_title(f'NUM_BINS={NBINS}')
+ax.set_xlabel('$\\log(\\text{dist})$')
+ax.hist(np.log(df['dist']), bins=NBINS, density=True)
 
 
 plt.tight_layout()
