@@ -22,6 +22,21 @@ column_norm_selector = {
 #	'asleep':None,			# bool
 }
 
+
+attribute_type = {
+	'near_fid':'Categorical', 	# categorical, should this be included?
+	'near_angle':'Numerical',	# Uniform on x \in [-180,180]
+	'log_dist':'Numerical',	# Two peaks, seemingly normally distributed
+	'age':'Numerical',			# Almost uniform on x \in [20,80]
+	'heard':None,			# label: N/A
+	'building':bool,		# bool
+	'noise':bool,			# bool
+	'in_vehicle':bool,		# bool
+	'no_windows':bool,		# bool
+#	'asleep':bool,			# bool
+}
+
+
 # Fixed random seed for reproducibility
 np.random.seed(123456)
 
@@ -173,15 +188,15 @@ def optimise_split(X, Y):
 	for i in range(NUM_IDS):
 		XX, YY = split(X, i), split(Y, i)
 		gains.append(evaluate_gain(*YY))
-	s = np.argmax(gains)				# Should it be max or min?
+	s = np.argmax(gains)
 
 	return split(X, s), split(Y, s)
 
 
-def grow(X, Y, maxit):
+def grow(maxit, Y, *args):
 	pass
 	frac = 0.5
-	print(X)
+	#print(X)
 	leaves = {}
 	# optimise split for all elements in list only if criteria is met
 	# Criteria can be a maximum number of steps and/or a given characteristic of a list
@@ -191,7 +206,7 @@ def grow(X, Y, maxit):
 	#       IF criteria not met, add to dict. When max number of iterations
 	#       have been reached, add all remaining lists (leaves) to the dict.
 	
-	Xsplit, Ysplit = optimise_split(X, Y)
+	Xsplit, Ysplit = optimise_split(*args, Y)
 	print(Xsplit, Ysplit)
 	"""
 	Plan:
@@ -200,6 +215,15 @@ def grow(X, Y, maxit):
 		 add the associated split associated pi-list (using pop) for it to leaves[n]
 	  3. Otherwise, call 'Xsplit, Ysplit = optimise_split(X, Y)' again
 	  4. Repeat until maxit is reached. Return leaves.
+		
+		Note: we want to split the categories apart, not the values themselves.
+		Pure splits have high entropy.
+		Each splitr should have associated with it, a tuple of the relative class
+		counts.
+
+	  In principle (according to nature article), what i am doing is correct.
+	  for X<x or X>x, simply take X[s]
+	  How determine direction of inequality?
 	"""
 	for n in range(maxit):
 
@@ -231,8 +255,7 @@ F = len(Y[Y == 0])
 #idx = 5 # The parameter that must be optimised in each step
 
 #XY = optimise_split(X, Y)
-
-#tree = grow(X, Y, depth)
+tree = grow(depth, Y, X)
 
 #X1, X2 = X[:idx], X[idx:]
 #Y1, Y2 = Y[:idx], Y[idx:]
@@ -264,3 +287,4 @@ df = pd.DataFrame(X, columns=[f'A{i}' for i in range(A)])
 df['Y'] = Y
 print(df)
 
+tree = grow(depth, df.pop('Y'), df)
