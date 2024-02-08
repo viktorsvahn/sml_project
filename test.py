@@ -173,7 +173,7 @@ def optimise_split(X, Y):
 	for i in range(NUM_IDS):
 		XX, YY = split(X, i), split(Y, i)
 		gains.append(evaluate_gain(*YY))
-	s = np.argmax(gains)
+	s = np.argmax(gains)				# Should it be max or min?
 
 	return split(X, s), split(Y, s)
 
@@ -191,10 +191,23 @@ def grow(X, Y, maxit):
 	#       IF criteria not met, add to dict. When max number of iterations
 	#       have been reached, add all remaining lists (leaves) to the dict.
 	
+	Xsplit, Ysplit = optimise_split(X, Y)
+	print(Xsplit, Ysplit)
+	"""
+	Plan:
+	  1. Generate an optimal split for the root
+	  2. For each split, if the frequency of one class is higher than 'frac',
+		 add the associated split associated pi-list (using pop) for it to leaves[n]
+	  3. Otherwise, call 'Xsplit, Ysplit = optimise_split(X, Y)' again
+	  4. Repeat until maxit is reached. Return leaves.
+	"""
 	for n in range(maxit):
-		None
 
-
+		for y in Ysplit:
+			print(y)
+			#if len(l) == 2:
+			#	leaves[n] = Ysplit.pop(l)
+	#print(leaves)
 
 	return leaves
 
