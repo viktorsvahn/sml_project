@@ -204,7 +204,8 @@ def grow(X, Y, maxit):
 	for n in range(maxit):
 
 		for y in Ysplit:
-			print(y)
+			pass
+			#print(y)
 			#if len(l) == 2:
 			#	leaves[n] = Ysplit.pop(l)
 	#print(leaves)
@@ -227,14 +228,14 @@ F = len(Y[Y == 0])
 
 
 # Split
-idx = 5 # The parameter that must be optimised in each step
+#idx = 5 # The parameter that must be optimised in each step
 
-XY = optimise_split(X, Y)
+#XY = optimise_split(X, Y)
 
-tree = grow(X, Y, depth)
+#tree = grow(X, Y, depth)
 
-X1, X2 = X[:idx], X[idx:]
-Y1, Y2 = Y[:idx], Y[idx:]
+#X1, X2 = X[:idx], X[idx:]
+#Y1, Y2 = Y[:idx], Y[idx:]
 
 #print(X1, X2)
 #print(Y1, Y2)
@@ -248,3 +249,18 @@ Y1, Y2 = Y[:idx], Y[idx:]
 
 #print(S1, EA1, gain1)
 #print(S2, EA2, gain2)
+
+A = 2
+N = 10
+depth = 2
+
+# Generate data
+X = np.arange(A*N)
+np.random.shuffle(X)
+X = X.reshape(N,A)
+Y = np.random.randint(0,2, N)
+
+df = pd.DataFrame(X, columns=[f'A{i}' for i in range(A)])
+df['Y'] = Y
+print(df)
+
