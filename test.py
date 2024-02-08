@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import math
 import copy
 import numpy as np
 import pandas as pd
@@ -9,7 +10,7 @@ import matplotlib.pyplot as plt
 TRAIN_RATIO = 0.8
 
 column_norm_selector = {
-#	'near_fid':'minmax', 	# categorical
+	'near_fid':None, 	# categorical, should this be included?
 	'near_angle':'minmax',	# Uniform on x \in [-180,180]
 	'log_dist':'minmax',	# Two peaks, seemingly normally distributed
 	'age':'minmax',			# Almost uniform on x \in [20,80]
@@ -26,6 +27,7 @@ np.random.seed(123456)
 
 
 # FUNCTIONS ###################################################################
+# Data
 def feature_rescale(df, column_info):
 	"""Given a dataframe and a column->norm-type map, returns a new dataframe
 	with features rescaled accordingly."""
@@ -58,10 +60,36 @@ def feature_rescale(df, column_info):
 			xnorm = x
 
 		else:
-			print('No normalisation scheme selected.')
+			print('No standardisation scheme selected.')
 
 		temp_df[col] = xnorm
 	return temp_df
+
+# Tree growth
+def entropy(frequencies):
+	"""Returns the Shannon entropy over some tuple/list of frequencies."""
+	return np.sum([-pi*np.log(pi) for pi in frequencies])
+
+def relative_occurrence(arg):
+	"""Determines the relative frequency of a given class in a categorical
+	array."""
+	classes, counts = np.unique(arg, return_counts=True)
+	return counts/sum(counts)
+
+def evaluate_gain(*args):
+	"""Evaluates the information gain across a set of lists."""
+	gain = 0
+	for arg in args:
+		pi = relative_occurrence(arg)	# Rel, class fraction
+		S = entropy(pi)					# Entropy
+		EA = sum(pi*S/NUM_ROWS)			# Expected average information
+		gain += S - EA					# Information gain
+	return gain
+
+def split(arr, idx):
+	"""Given some array and index, split array at index and return both as a
+	list."""
+	return [arr[:idx], arr[idx:]]
 
 
 # LOAD DATA ###################################################################
@@ -73,33 +101,40 @@ NUM_ROWS = len(df.index)
 NUM_TRAIN = int(NUM_ROWS*TRAIN_RATIO)
 NUM_TEST = NUM_ROWS-NUM_TRAIN
 
+NUM_HEARD = len(df[df['heard'] == 1])
+NUM_NOT_HEARD = NUM_ROWS - NUM_HEARD
+print(NUM_HEARD, NUM_NOT_HEARD)
+
+TOTAL_ENTROPY = entropy([NUM_NOT_HEARD/NUM_ROWS, NUM_HEARD/NUM_ROWS])
+print(TOTAL_ENTROPY)
+
 
 # PRE-PROCESSING ##############################################################
+
 # Filter data
 df = df[df['asleep'] == 0] # Filters to non-sleeping instances
 
+# Convert coords to log-distances between individual and fid
 dist_x = df.pop('near_x') - df.pop('xcoor')
 dist_y = df.pop('near_y') - df.pop('ycoor')
 dist = np.sqrt(dist_x**2 + dist_y**2)
-#print(df)
 df['log_dist'] = np.log(dist)
 
+# Select columns included in the preamble
 df = df[column_norm_selector.keys()]
 print(df.columns)
 
-# SHUFFLING
+# SHUFFLE AND SPLIT
 # Shuffle all rows. Frac is ratio of rows to return, randomly.
 df = df.sample(frac=1)
 #print(df)
 
-
-# SPLITTING
-# Label data
+# Extract and split labels
 labels = df.pop('heard')
 train_labels = labels[:NUM_TRAIN]
 test_labels = labels[NUM_TRAIN:]
 
-# Features
+# Extract and split features
 train_df = df[:NUM_TRAIN]
 test_df = df[NUM_TRAIN:]
 
@@ -110,5 +145,93 @@ test_df = df[NUM_TRAIN:]
 # feature_rescale AND ZERO-CENTRE FEATURES 
 train_df = feature_rescale(train_df, column_norm_selector)
 test_df = feature_rescale(test_df, column_norm_selector)
-print(train_df, train_labels)
+#print(train_df, train_labels)
 
+
+"""
+Loss function: shannon entropy?
+
+Cost funciton is used to evaluate splits in the tree
+
+Splits require one input attribute and one associated label.
+
+The cost function measures the goodness of a split. 
+
+SHOULD THIS BE GENERALISED FOR MORE THAN BINARY SPLITS?
+HOW DO WE GENERALISE FOR MILTIPLE ATTRIBUTES?
+"""
+
+
+
+def optimise_split(X, Y):
+	"""Optimises the split of X based on the associated information gain of
+	making the split on Y."""
+	classes, counts = np.unique(Y, return_counts=True)	
+	NUM_IDS = len(X)
+	
+	gains = []
+	for i in range(NUM_IDS):
+		XX, YY = split(X, i), split(Y, i)
+		gains.append(evaluate_gain(*YY))
+	s = np.argmax(gains)
+
+	return split(X, s), split(Y, s)
+
+
+def grow(X, Y, maxit):
+	pass
+	frac = 0.5
+	print(X)
+	leaves = {}
+	# optimise split for all elements in list only if criteria is met
+	# Criteria can be a maximum number of steps and/or a given characteristic of a list
+	# Examples of charateristics is to stop on pure nodes. Stop should mean that we return
+	# the counts within the leaf.
+	# IDEA: Create a dict where only leaves are added.
+	#       IF criteria not met, add to dict. When max number of iterations
+	#       have been reached, add all remaining lists (leaves) to the dict.
+	
+	for n in range(maxit):
+		None
+
+
+
+	return leaves
+
+
+# Control parameters
+N = 10
+depth = 2
+
+# Generate data
+X = np.arange(N)
+Y = np.random.randint(0,2, N)
+T = len(Y[Y == 1])
+F = len(Y[Y == 0])
+
+#print(X, Y)
+#print(T, F)
+
+
+# Split
+idx = 5 # The parameter that must be optimised in each step
+
+XY = optimise_split(X, Y)
+
+tree = grow(X, Y, depth)
+
+X1, X2 = X[:idx], X[idx:]
+Y1, Y2 = Y[:idx], Y[idx:]
+
+#print(X1, X2)
+#print(Y1, Y2)
+
+
+
+
+# Evaluate
+#g = evaluate_gain(Y1, Y2)
+#print(g)
+
+#print(S1, EA1, gain1)
+#print(S2, EA2, gain2)

@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
-
+import math
+import copy
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,6 +13,15 @@ import matplotlib.pyplot as plt
 # Dataframe
 df = pd.read_csv('siren_data_train.csv')
 
+# Variables
+NUM_ROWS = len(df.index)
+
+# Bin width selection
+#NBINS = column_bin_selector[col]		# Manually set widths
+#if NBINS == None: NBINS = 10			# Pertains to the above
+#NBINS = math.ceil(np.log(NUM_ROWS)+1)	# Sturge's formula
+NBINS = math.ceil(2*NUM_ROWS**(1/3))	# Rice rule
+#NBINS = math.ceil(np.sqrt(NUM_ROWS))	# Square-root choice
 
 
 # PRE-PROCESSING ##############################################################
@@ -39,13 +49,12 @@ axs = axs.ravel()
 
 for i, ax in enumerate(axs):
 
-	NBINS = 50
 	ax.set_title(f'NUM_BINS={NBINS}')
 	if i == 0:
 		ax.set_xlabel('$\\log(\\text{dist})$')
 	else:
 		ax.set_xlabel('Scaled $\\log(\\text{dist})$')
-	ax.hist(df[l[i]], bins=NBINS, density=True)
+	ax.hist(df[l[i]], bins=NBINS, density=False)
 
 
 plt.tight_layout()
