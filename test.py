@@ -221,6 +221,8 @@ def grow(maxit, Y, *args):
 		Each splitr should have associated with it, a tuple of the relative class
 		counts.
 
+		Randomly select attribute each split?
+
 	  In principle (according to nature article), what i am doing is correct.
 	  for X<x or X>x, simply take X[s]
 	  How determine direction of inequality?
@@ -285,6 +287,73 @@ Y = np.random.randint(0,2, N)
 
 df = pd.DataFrame(X, columns=[f'A{i}' for i in range(A)])
 df['Y'] = Y
-print(df)
+#print(df)
 
-tree = grow(depth, df.pop('Y'), df)
+#tree = grow(depth, df.pop('Y'), df)
+print(79*'#')
+class Node:
+	leaves = dict()
+	non_terminal = dict()
+	left = dict()
+	right = dict()
+
+	def __init__(self,
+		):	
+		self.level = 0
+		self.split_left = 0
+		self.split_right = 0
+
+
+	def growth(self):
+		pass
+		self.level += 1
+		print(Node.X.iloc[0])
+		
+
+	def plant(self, df):
+		Node.X = df
+
+
+	def entropy(self, frequencies):
+		"""Returns the Shannon entropy over some tuple/list of frequencies."""
+		return np.sum([-pi*np.log(pi) for pi in frequencies])
+
+	def relative_occurrence(self, arg):
+		"""Determines the relative frequency of a given class in a categorical
+		array."""
+		classes, counts = np.unique(arg, return_counts=True)
+		return counts/sum(counts)
+
+	def evaluate_gain(self, *args):
+		"""Evaluates the information gain of a split."""
+		gain = 0							# Total information gain of split
+		for arg in args:
+			pi = relative_occurrence(arg)	# Relative class occurrence
+			S = entropy(pi)					# Shannon entropy of left/right
+			EA = sum(pi*S/NUM_ROWS)			# Expected avg. info of left/right
+			gain += S - EA					# Information gain of left/right
+		return gain
+
+	def split(self, arr, idx):
+		"""Given some array and index, split array at index and return both as a
+		list."""
+		return [arr[:idx], arr[idx:]]
+
+
+
+tree = Node()
+tree.plant(df)
+print(tree.level)
+print(tree.X)
+
+for l in range(depth):
+	tree.growth()
+	#node = Node(l+1)
+	print(tree.level)
+
+
+
+
+
+
+
