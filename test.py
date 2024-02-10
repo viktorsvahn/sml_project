@@ -23,18 +23,7 @@ column_norm_selector = {
 }
 
 
-attribute_type = {
-	'near_fid':'Categorical', 	# categorical, should this be included?
-	'near_angle':'Numerical',	# Uniform on x \in [-180,180]
-	'log_dist':'Numerical',	# Two peaks, seemingly normally distributed
-	'age':'Numerical',			# Almost uniform on x \in [20,80]
-	'heard':None,			# label: N/A
-	'building':bool,		# bool
-	'noise':bool,			# bool
-	'in_vehicle':bool,		# bool
-	'no_windows':bool,		# bool
-#	'asleep':bool,			# bool
-}
+
 
 
 # Fixed random seed for reproducibility
@@ -80,7 +69,7 @@ def feature_rescale(df, column_info):
 		temp_df[col] = xnorm
 	return temp_df
 
-# Tree growth
+# Tree grow
 def entropy(frequencies):
 	"""Returns the Shannon entropy over some tuple/list of frequencies."""
 	return np.sum([-pi*np.log(pi) for pi in frequencies])
@@ -241,7 +230,7 @@ def grow(maxit, Y, *args):
 
 # Control parameters
 N = 10
-depth = 2
+depth = 1
 
 # Generate data
 X = np.arange(N)
@@ -275,6 +264,27 @@ tree = grow(depth, Y, X)
 #print(S1, EA1, gain1)
 #print(S2, EA2, gain2)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 A = 2
 N = 10
 depth = 2
@@ -289,31 +299,105 @@ df = pd.DataFrame(X, columns=[f'A{i}' for i in range(A)])
 df['Y'] = Y
 #print(df)
 
-#tree = grow(depth, df.pop('Y'), df)
+
+
 print(79*'#')
-class Node:
+
+
+attribute_type = {
+	'near_fid':'Categorical', 	# categorical, should this be included?
+	'near_angle':'Numerical',	# Uniform on x \in [-180,180]
+	'log_dist':'Numerical',	# Two peaks, seemingly normally distributed
+	'age':'Numerical',			# Almost uniform on x \in [20,80]
+	'heard':None,			# label: N/A
+	'building':bool,		# bool
+	'noise':bool,			# bool
+	'in_vehicle':bool,		# bool
+	'no_windows':bool,		# bool
+#	'asleep':bool,			# bool
+}
+
+attribute_type = {
+	'A0':'Numerical',
+	'A1':bool,
+	'A2':bool,
+	'A3':bool,
+	'A4':bool,
+}
+
+
+class Tree():
+	"""Instantiation of this class leads to the creation of a node that
+	immediately splits into two, if some condition is met.
+	"""
+	leaf_list = list()
 	leaves = dict()
-	non_terminal = dict()
-	left = dict()
-	right = dict()
+	#non_terminal_splits = dict()
+	#left = dict()
+	#right = dict()
+	tmp_gains = []
+	gains = dict()
+	node_count = 0
 
-	def __init__(self,
-		):	
-		self.level = 0
-		self.split_left = 0
-		self.split_right = 0
-
-
-	def growth(self):
-		pass
-		self.level += 1
-		print(Node.X.iloc[0])
+	def __init__(self, X, Y, MAX_DEPTH=None):
+		self.X = X
+		self.Y = Y
+		if MAX_DEPTH is not None:
+			Tree.MAX_DEPTH = MAX_DEPTH				# Set max-depth on init
+		
+		self.split_condition = None					# (attr, split_index) 
+		
+		if Tree.node_count == 1:
+			self.NUM_ROWS = len(self.Y)
+		Tree.node_count += 1
 		
 
-	def plant(self, df):
-		Node.X = df
+
+	# Primary methods
+	def grow(self, NUM_PARENTS=1):
+		""" """
+		# Attributes that are 0,1 needs to be converted to booleans
+		self.attributes = self.X.columns
+		rand_attr = np.random.choice(self.attributes)
+		random_attribute = self.X[rand_attr]
+		attr_type = attribute_type[rand_attr]
+		if attr_type == bool: random_attribute.astype(bool)
+
+		# Split condition
+		s, self.gain =  self.optimise_split(
+			random_attribute,
+			self.Y
+		)
+		Tree.gains[NUM_PARENTS-1] = self.gain
+		#Tree.tmp_gains.append(self.gain)
+
+		self.split_condition = (rand_attr, random_attribute[s])
+		#print(self.split_condition)
+
+		if NUM_PARENTS < Tree.MAX_DEPTH:
+
+			Tree.gains[NUM_PARENTS] = Tree.tmp_gains
+			NUM_PARENTS += 1
+			left_X_split, right_X_split = self.split(self.X, s)
+			left_Y_split, right_Y_split = self.split(self.Y, s)
+			self.split_left = Tree(left_X_split, left_Y_split)
+			self.split_left.grow(NUM_PARENTS)
+			
+			self.split_right = Tree(right_X_split, right_Y_split)
+			self.split_right.grow(NUM_PARENTS)
+
+		else:
+			rel_freq = self.relative_occurrence(self.Y)
+			Tree.leaf_list.append(rel_freq)
+			Tree.leaves[NUM_PARENTS] = Tree.leaf_list
+		
+	def classify(self):
+		"""Left splits are 'greater than' for numerical values and 'True' for 
+		boolean. The reverse is true for right splits."""
+		pass
 
 
+	# Auxillary methods
 	def entropy(self, frequencies):
 		"""Returns the Shannon entropy over some tuple/list of frequencies."""
 		return np.sum([-pi*np.log(pi) for pi in frequencies])
@@ -322,38 +406,54 @@ class Node:
 		"""Determines the relative frequency of a given class in a categorical
 		array."""
 		classes, counts = np.unique(arg, return_counts=True)
+		#print(classes, counts)
 		return counts/sum(counts)
 
 	def evaluate_gain(self, *args):
 		"""Evaluates the information gain of a split."""
-		gain = 0							# Total information gain of split
+		gain = 0								# Total information gain of split
 		for arg in args:
-			pi = relative_occurrence(arg)	# Relative class occurrence
-			S = entropy(pi)					# Shannon entropy of left/right
-			EA = sum(pi*S/NUM_ROWS)			# Expected avg. info of left/right
-			gain += S - EA					# Information gain of left/right
+			pi = self.relative_occurrence(arg)	# Relative class occurrence
+			S = self.entropy(pi)				# Shannon entropy of left/right
+			EA = sum(pi*S/NUM_ROWS)				# Expected avg. info of left/right
+			gain += S - EA						# Information gain of left/right
 		return gain
 
-	def split(self, arr, idx):
+	def split(self, df, idx):
 		"""Given some array and index, split array at index and return both as a
 		list."""
-		return [arr[:idx], arr[idx:]]
+		return [df.iloc[:idx], df.iloc[idx:]]
+
+	def optimise_split(self, X, Y):
+		"""Optimises the split of X based on the associated information gain of
+		making the split on Y."""
+		classes, counts = np.unique(Y, return_counts=True)	
+		NUM_IDS = len(X)
+		gains = []
+		for i in range(NUM_IDS):
+			XX, YY = self.split(X, i), split(Y, i)
+			gain = self.evaluate_gain(*YY)
+			gains.append(gain)
+		s = np.argmax(gains)	
+		MAX_GAIN = max(gains)
+		
+		return s, MAX_GAIN
+
+
+Y = df.pop('Y')
+#print(df)
+#print(Y)
 
 
 
-tree = Node()
-tree.plant(df)
-print(tree.level)
-print(tree.X)
+tree = Tree(df, Y, depth)
+tree.grow()
 
-for l in range(depth):
-	tree.growth()
-	#node = Node(l+1)
-	print(tree.level)
+#print(tree.X)
+#print(tree.split_right.X)
+#print(tree.split_left.X)
 
-
-
-
-
-
+print('Number of nodes:', tree.node_count)
+print('Gains:', tree.gains)
+print('Leaves:', tree.leaves)
 
