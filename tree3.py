@@ -94,16 +94,22 @@ class Tree(Node):
 			# NUMERICAL SHOULD ALSO BE SORTED AND SPLIT AS PREVIOUS
 			
 
-			attr, split = self.optimise_split(self.X, self.label)
+			split_condition, split = self.optimise_split(self.X, self.label)
+			print(split)
 			try:
 				left, right = [s[1] for s in split]
 			except:
 				left, right = split
+			#print(left)
+			#print(right)
+			
 			self.left = Tree(left, self.label)
+			self.left.parent = split_condition
 			self.left.grow(NUM_PARENTS+1)
 			
 			self.right = Tree(right, self.label)
-			self.right.grow(NUM_PARENTS+1)
+			self.right.parent = split_condition
+			#self.right.grow(NUM_PARENTS+1)
 
 
 						#print(entropy*count[0]/S)
@@ -223,14 +229,16 @@ class Tree(Node):
 				if X.dtype == bool:
 					
 					split = attributes.groupby(attr)
+					tmp_split = []
 					GAIN = 0
 					for s in split:
 						df = s[1]
 						df.pop(attr)
+						#print(df)
 						
 						Y = df[label] # classifications
 						GAIN += self.dataset_entropy - self.info(Y)
-					gains[GAIN] = (attr, split)
+					gains[GAIN] = [(attr, attributes[attr][index]), split]
 					#print(gains)
 				
 
@@ -242,17 +250,21 @@ class Tree(Node):
 					for index in attributes.index:
 						#print(index)
 						if (index > 0) and (index < max(attributes.index)):
+
 							split = self.split(attributes, index)
 							INFO = 0
 							for s in split:
 								#print(s)
 								INFO += self.info(s[label])
 							GAIN = self.dataset_entropy - INFO
-							gains[GAIN] = (attr, split)
+							gains[GAIN] = [(attr, attributes[attr][index]), split[-1]]
+							#print(index)
+
 							#print(split)
 
 		optimal_split = gains[max(gains)]
 		#print(optimal_split)
+		#print(gains)
 		return optimal_split
 
 
