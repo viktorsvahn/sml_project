@@ -36,8 +36,13 @@ class Node:
 
 
 class Tree(Node):
+	"""Implementaion of a variant of a C4.5 classification tree algorithm by 
+	Breiman (1984) and Quinlan (1986).
+
+	This version makes use of unnomralised, rather than normalised, information 
+	gain."""
 	tmp_gains = [] 									# For statistics
-	gains = dict()									# For statistics
+	gains = {}									# For statistics
 
 	def __init__(self,
 		data,
@@ -60,66 +65,53 @@ class Tree(Node):
 		print('dataset entropy =', self.dataset_entropy)
 
 		if MAX_DEPTH is None:
-			#self.grow(self.NUM_PARENT)
 			pass
 		else:
 			Tree.MAX_DEPTH = MAX_DEPTH				# Stopping criterion
 			
 			# Reset tree by including MAX_DEPTH in instantiation
 			Tree.tmp_gains = [] 					# For statistics
-			Tree.gains = dict()						# For statistics
+			Tree.gains = {0:self.dataset_entropy}						# For statistics
+			#Tree.gains = {0:0}						# For statistics
 			Node.node_count = 1 					# Should be 2^MAX_DEPTH-1 at most
 		
-			#self.grow(1)
-
-
-		#print(self.dataset_entropy)
-		
-		# Slush printstatements, delete when done
-		#print(self.X)
-		#print(self.Y)
-		#self.pi = self.relative_occurrence(self.Y)
-		#print(self.pi)
-		#c = self.classify(self.X['log_dist'], self.Y)
-		#o = self.optimise_split(self.X['log_dist'], self.Y)
-		#print(o)
 
 	def grow(self, NUM_PARENTS=1):
 		pass
+		#self.NUM_PARENTS = NUM_PARENTS
+		#Tree.gains[NUM_PARENTS] = Tree.tmp_gains
+
 		
-		if NUM_PARENTS < Tree.MAX_DEPTH:
+		
+		if (NUM_PARENTS < Tree.MAX_DEPTH):
 			#print('asashaskhasljdhasldjhsad')	
 
 			#CATEGORICAL COLUMNS ARE DROPPED, REAL NUMERICAL ARE NOT
 			# NUMERICAL SHOULD ALSO BE SORTED AND SPLIT AS PREVIOUS
-			
+		
+			split_condition, split, GAIN = self.optimise_split(self.X, self.label)
+			Tree.gains[NUM_PARENTS] = GAIN
 
-			split_condition, split = self.optimise_split(self.X, self.label)
-			#print(split)
-			#try:
-			#	left, right = [s[1] for s in split]
-			#except:
-			#	left, right = split
 			try:
 				left, right = split
-			except:
-				pass
-			#print(left[1].columns)
-			#print(right)
-			#print(left)
-			
-			if left is not None:
-				print('assadasdsds', left)
+
 				self.left = Tree(left, self.label)
-				print(self.left)
 				self.left.parent = split_condition
 				self.left.grow(NUM_PARENTS+1)
-			
-			if right is not None:
-				print('jhjhghgjgh', right)
+				
 				self.right = Tree(right, self.label)
 				self.right.parent = split_condition
 				self.right.grow(NUM_PARENTS+1)
+			except:
+				pass
+				#for s in split:
+				#	print(self.relative_occurrence(s))
+				#print(self.X)
+				
+				self.leaf = split_condition
+				#print(split_condition)
+
+
 
 		else:
 			pass
@@ -195,20 +187,22 @@ class Tree(Node):
 							# Order of splits is reveresed to have left output
 							# always be greater than for numerical attributes
 							GAIN = self.dataset_entropy - INFO
-							gains[GAIN] = [(attribute, data[attribute][index]), splits[::-1]]
+							gains[GAIN] = [(attribute, data[attribute][index]), splits[::-1], GAIN]
 
-		optimal_split = gains[max(gains)]
+		MAX_GAIN = max(gains)
+		optimal_split = gains[MAX_GAIN]
 		return optimal_split
 
 
 
 # CONTROL VARIABLES/OBJECTS ###################################################
 TRAIN_RATIO = 0.002
-depth = 4
-
-
+depth = 2
+runs = 1
+save = False
+show = True
 # Fixed random seed for reproducibility
-np.random.seed(12345)
+#np.random.seed(12345)
 
 
 # LOAD DATA ###################################################################
@@ -282,12 +276,15 @@ for attribute in df:
 #print(df)
 
 
-runs = 1
+
 gns = []
 depths = np.arange(depth)
 
-print('Running...')
+yy = []
+
+
 for run in range(runs):
+	print('Run: ', run)
 	#np.random.seed(run)
 	tmp_df = copy.deepcopy(df)
 
@@ -311,20 +308,26 @@ for run in range(runs):
 	#print(tree.gains)
 	#gns.append(list(tree.gains.values()))
 	
+	x = tree.gains.keys(); y = tree.gains.values()
+	yy.append(list(y))
+	#y = np.mean(, axis=1)
+
+	plt.plot(x,y, '.', label=f'Run {run}')
+
 print('Finished!')
 #print(tree.left.X)
-
-#print(gns)
-#avg_gns = np.mean(gns, axis=0)
-#print(avg_gns)
-
-#std_gns = np.std(gns, axis=0)
-#print(std_gns)
-
-#for g in gns:
-#	plt.plot(depths, g, '.-')
-#plt.errorbar(depths, avg_gns, yerr=std_gns) 
+out_df = pd.DataFrame(yy)
+out_df['avg'] = out_df.mean(axis=0)
+plt.plot(out_df.index, out_df['avg'], 'k', label='Average', zorder=0) 
 
 
+plt.title(f'Depth optimisation with {TRAIN_RATIO:.0%} of data used for training')
+plt.xlabel('Depth')
+plt.ylabel('Max gain')
 
-#plt.show()
+if save:
+	out_df.to_csv(f'{TRAIN_RATIO*100:.0%}trainsize_{depth}maxdepth_{runs}runs.txt', sep=' ')
+
+plt.legend()
+if show:
+	plt.show()
