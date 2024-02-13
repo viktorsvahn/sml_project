@@ -95,70 +95,37 @@ class Tree(Node):
 			
 
 			split_condition, split = self.optimise_split(self.X, self.label)
-			print(split)
+			#print(split)
+			#try:
+			#	left, right = [s[1] for s in split]
+			#except:
+			#	left, right = split
 			try:
-				left, right = [s[1] for s in split]
-			except:
 				left, right = split
-			#print(left)
+			except:
+				pass
+			#print(left[1].columns)
 			#print(right)
+			#print(left)
 			
-			self.left = Tree(left, self.label)
-			self.left.parent = split_condition
-			self.left.grow(NUM_PARENTS+1)
+			if left is not None:
+				print('assadasdsds', left)
+				self.left = Tree(left, self.label)
+				print(self.left)
+				self.left.parent = split_condition
+				self.left.grow(NUM_PARENTS+1)
 			
-			self.right = Tree(right, self.label)
-			self.right.parent = split_condition
-			#self.right.grow(NUM_PARENTS+1)
+			if right is not None:
+				print('jhjhghgjgh', right)
+				self.right = Tree(right, self.label)
+				self.right.parent = split_condition
+				self.right.grow(NUM_PARENTS+1)
 
-
-						#print(entropy*count[0]/S)
-
-			# KEEP SPLITTING UNTIL 0 ENTROPY.
-			# IF ONE SPLIT LEADS TO A PURE NODE, 
-		
-			"""
-			optimal_split_attribute, split_index = self.select_attribute(self.X, self.Y)
-		
-			Xleft, Xright = self.split(self.X, split_index)
-			Yleft, Yright = self.split(self.Y, split_index)
-
-
-
-
-			self.left = Tree(Xleft, Yleft)
-			self.left.grow(NUM_PARENTS+1)
-		
-			self.right = Tree(Xright, Yright)
-			self.right.grow(NUM_PARENTS+1)
-
-			"""
-			#self.left = Tree(train_df, train_labels, depth)
-			#self.left.parent = 1
 		else:
-			#print('312312312321312')
 			pass
-
-	#def seed(self):
-	#	pass
 
 
 	# Auxiliary methods	
-	#def key_at_max_val(self, dictionary):
-	#	"""Given a dictionary, returns a key, and value, associated with the
-	#	largest value in the dictionary."""
-	#	MAX_VALUE = max(dictionary.values())
-	#	KEY_AT_MAX = max(dictionary, key=dictionary.get)
-	#	return KEY_AT_MAX, MAX_VALUE
-
-	#def val_at_max_key(self, dictionary):
-	#	"""Given a dictionary, returns a key, and value, associated with the
-	#	largest value in the dictionary."""
-	#	MAX_KEY = max(dictionary, key=dictionary.get)
-	#	VALUE_AT_MAX = max(dictionary)
-	#	#VALUE_AT_MAX = max(dictionary.values())
-	#	return MAX_KEY, VALUE_AT_MAX
-
 	def relative_occurrence(self, arr):
 		"""Determines the relative frequency of a given class in a categorical
 		array."""
@@ -180,18 +147,6 @@ class Tree(Node):
 		            - ( |left_df|/|parent_df|*Shannon_entropy(left) 
 		              + |right_df|/|parent_df|*Shannon_entropy(right) )
 		"""
-		# Parent entropy
-		#parent_pi = self.relative_occurrence(parent)
-		#parent_entropy = self.shannon_entropy(parent_pi)
-
-
-		# Expected branch entropy
-		#expected_entropy = 0										# Expected entropy of split
-		#for sub_class in classifications:
-		#	sub_pi = self.relative_occurrence(sub_class)			# Relative class occurrence
-		#	sub_entropy = self.shannon_entropy(sub_pi)				# Left/right Shannon entropy
-		#	expected_entropy += len(sub_class)*sub_entropy/len(self.Y)
-		
 		RCOUNT = classifications.value_counts(normalize=True)
 		ENTROPY = self.shannon_entropy(RCOUNT)
 		INFO = ENTROPY*len(classifications)/self.NUM_SAMPLES
@@ -202,76 +157,54 @@ class Tree(Node):
 		disjoint dataframes that have been split at the given index."""
 		return [df.iloc[:split_index], df.iloc[split_index:]]
 
-	#def sort_attribute(self, attribute, classifications):
-	#	"""Given some attribute and an associated set of classifications, 
-	#	returns the inputs sorted in terms of attribute magnitude.
-
-	#	Primarily used for sorting numerical attributes."""
-	#	tmp_df = pd.concat([attribute, classifications], axis=1)
-	#	tmp_df = tmp_df.sort_values(attribute.name).reset_index(drop=True)
-	#	columns = tmp_df.columns
-	#	attribute, classifications = tmp_df[columns[0]], tmp_df[columns[1]]
-	#	del tmp_df
-	#	return attribute, classifications
-
-	def optimise_split(self, attributes, label):
+	def optimise_split(self, data, label):
 		"""Optimises the split of Y based on the associated maximum information
 		gain (IGain) of making the split.
 
 		  Returns:
 		    - Index that maximises IGain, and
 		    - its associated Igain"""
+		
 		gains = {}
-		for attr in self.attributes:
-			if attr != label:
-				X = attributes[attr]
-				#print(X.dtype)
-				if X.dtype == bool:
-					
-					split = attributes.groupby(attr)
-					tmp_split = []
-					GAIN = 0
-					for s in split:
-						df = s[1]
-						df.pop(attr)
-						#print(df)
-						
-						Y = df[label] # classifications
-						GAIN += self.dataset_entropy - self.info(Y)
-					gains[GAIN] = [(attr, attributes[attr][index]), split]
-					#print(gains)
+		for attribute in self.attributes:
+			if attribute != label:				
+				attribute_realisations = data[attribute]
 				
+				if attribute_realisations.dtype == bool:	
+					# Without lambda, iteration of split returns a tuple of
+					# value and dataframe
+					splits = data.groupby(attribute).apply(lambda x: x)
+					GAIN = 0
+					for s in splits:
+						split = s[1]
+						if len(split) > 2:
+							split.pop(attribute)							
+							classifications = split[label] # classifications
+							GAIN += self.dataset_entropy - self.info(classifications)		
+					gains[GAIN] = [(attribute, data[attribute][index]), splits]
 
 				else:
-					#print(attr)
-					attributes = attributes.sort_values(attr).reset_index(drop=True)
-					#print(attributes)
+					data = data.sort_values(attribute).reset_index(drop=True)
 
-					for index in attributes.index:
-						#print(index)
-						if (index > 0) and (index < max(attributes.index)):
-
-							split = self.split(attributes, index)
+					for index in data.index:
+						if (index > 0) and (index < max(data.index)):
+							splits = self.split(data, index)							
 							INFO = 0
-							for s in split:
-								#print(s)
-								INFO += self.info(s[label])
+							for s in splits:
+								INFO += self.info(s[label])						
+							# Order of splits is reveresed to have left output
+							# always be greater than for numerical attributes
 							GAIN = self.dataset_entropy - INFO
-							gains[GAIN] = [(attr, attributes[attr][index]), split[-1]]
-							#print(index)
-
-							#print(split)
+							gains[GAIN] = [(attribute, data[attribute][index]), splits[::-1]]
 
 		optimal_split = gains[max(gains)]
-		#print(optimal_split)
-		#print(gains)
 		return optimal_split
 
 
 
 # CONTROL VARIABLES/OBJECTS ###################################################
 TRAIN_RATIO = 0.002
-depth = 3
+depth = 4
 
 
 # Fixed random seed for reproducibility
@@ -295,6 +228,7 @@ print(NUM_HEARD, NUM_NOT_HEARD)
 # PRE-PROCESSING ##############################################################
 
 # Filter data
+
 df.pop('near_fid')
 #df = df[df['asleep'] == 0] # Filters to non-sleeping instances
 
