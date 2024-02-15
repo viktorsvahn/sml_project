@@ -21,18 +21,20 @@ attribute_type = {
 }
 
 # FUNCTIONS ###################################################################
+
 class Node:
-	node_count = 1
+	node_count = 0
+	leaf_count = 0
 	def __init__(self,
 		parent=None,
 		left=None, 
-		right=None
+		right=None,
+		leaf=None,
 	):
-		self.parent = parent 						# Parent (attribute, entropy/gain)
-		self.left = left 							# Greater than/True node object
-		self.right = right 							# Less than/False node object
-
-		Node.node_count += 1
+		self.parent = parent
+		self.left = left
+		self.right = right
+		self.leaf = leaf
 
 
 class Tree(Node):
@@ -41,8 +43,8 @@ class Tree(Node):
 
 	This version makes use of unnomralised, rather than normalised, information 
 	gain."""
-	tmp_gains = [] 									# For statistics
-	gains = {}									# For statistics
+	#tmp_gains = []
+	gains = {}
 
 	def __init__(self,
 		data,
@@ -57,64 +59,80 @@ class Tree(Node):
 		self.NUM_SAMPLES = len(self.X)
 		self.attributes = self.X.columns
 
-
 		# Shannon entropy of entire dataset
 		self.pi = self.relative_occurrence(self.X[self.label])
 		self.dataset_entropy = self.shannon_entropy(self.pi)
-
-		print('dataset entropy =', self.dataset_entropy)
+		#print('dataset entropy =', self.dataset_entropy)
 
 		if MAX_DEPTH is None:
 			pass
 		else:
-			Tree.MAX_DEPTH = MAX_DEPTH				# Stopping criterion
-			
+			Tree.MAX_DEPTH = MAX_DEPTH
+
 			# Reset tree by including MAX_DEPTH in instantiation
-			Tree.tmp_gains = [] 					# For statistics
-			Tree.gains = {0:self.dataset_entropy}						# For statistics
-			#Tree.gains = {0:0}						# For statistics
-			Node.node_count = 1 					# Should be 2^MAX_DEPTH-1 at most
-		
+			Tree.tmp_gains = []
+			Tree.gains = {0:self.dataset_entropy}
+			Node.node_count = 0
+			Node.leaf_count = 0
 
-	def grow(self, NUM_PARENTS=1):
-		pass
-		#self.NUM_PARENTS = NUM_PARENTS
-		#Tree.gains[NUM_PARENTS] = Tree.tmp_gains
+	def grow(self, NUM_PARENTS=0):
+		"""Tree growth method. Calling this wihtout an argument will initiate a
+		the growth of a new tree. To generate a tree, call:
 
-		
-		
-		if (NUM_PARENTS < Tree.MAX_DEPTH):
-			#print('asashaskhasljdhasldjhsad')	
+			tree = Tree(train_data, 'label', max_depth)
+			tree.grow()
 
-			#CATEGORICAL COLUMNS ARE DROPPED, REAL NUMERICAL ARE NOT
-			# NUMERICAL SHOULD ALSO BE SORTED AND SPLIT AS PREVIOUS
-		
-			split_condition, split, GAIN = self.optimise_split(self.X, self.label)
-			Tree.gains[NUM_PARENTS] = GAIN
+		where the label is the name of the column of train_data that contains 
+		the classification values. Max depth specifies the maximum possible depth
+		of the tree, unless it self terminates before.
 
-			try:
-				left, right = split
+		Assuming the max depth has not been reached, leaves are only created if 
+		nodes are pure, otherwise it will split."""
+		#print(NUM_PARENTS, Tree.MAX_DEPTH)
+		if (NUM_PARENTS <= Tree.MAX_DEPTH):
 
-				self.left = Tree(left, self.label)
-				self.left.parent = split_condition
-				self.left.grow(NUM_PARENTS+1)
+			# Leaves can not be created at first node
+			if NUM_PARENTS > 0:
+				labels = self.X[self.label]
+				NUM_LABELS = len(labels)
 				
-				self.right = Tree(right, self.label)
-				self.right.parent = split_condition
-				self.right.grow(NUM_PARENTS+1)
-			except:
-				pass
-				#for s in split:
-				#	print(self.relative_occurrence(s))
-				#print(self.X)
+				# Dominating labels
+				MAX_CLASS = labels.max()
+
+				# Label counts
+				class_counts = labels.value_counts()
 				
-				self.leaf = split_condition
-				#print(split_condition)
+				# Label at max count
+				CLASSIFICATION = class_counts.idxmax()
+				
+				if class_counts[CLASSIFICATION] == NUM_LABELS:
+					self.leaf = CLASSIFICATION
+					Node.leaf_count += 1
 
+			# If current object is not a leaf, try split
+			if self.leaf is None:
+				condition, split, GAIN = self.optimise_split(self.X, self.label)
+				Tree.gains[NUM_PARENTS] = GAIN
+				try:
+					left, right = split
+					self.parent = condition
+					self.left = Tree(left, self.label)
+					self.left.grow(NUM_PARENTS+1)
+					
+					self.right = Tree(right, self.label)
+					self.right.grow(NUM_PARENTS+1)
+					Node.node_count += 1
 
+				# If no optimal split possible, create leaf
+				except:
+					self.leaf = CLASSIFICATION
+					Node.leaf_count += 1
 
-		else:
-			pass
+		# Convert to leaf upon reaching maximum depth
+		elif NUM_PARENTS-1 == Tree.MAX_DEPTH:
+			self.leaf = CLASSIFICATION
+			Node.leaf_count += 1
+		#if self.leaf is not None: print('leaf: ', self.leaf)
 
 
 	# Auxiliary methods	
@@ -122,7 +140,6 @@ class Tree(Node):
 		"""Determines the relative frequency of a given class in a categorical
 		array."""
 		_, counts = np.unique(arr, return_counts=True)
-		#print(classes, counts)
 		return counts/sum(counts)
 
 	def shannon_entropy(self, frequencies):
@@ -159,10 +176,10 @@ class Tree(Node):
 		
 		gains = {}
 		for attribute in self.attributes:
-			if attribute != label:				
+			if attribute != label:
 				attribute_realisations = data[attribute]
 				
-				if attribute_realisations.dtype == bool:	
+				if attribute_realisations.dtype == bool:
 					# Without lambda, iteration of split returns a tuple of
 					# value and dataframe
 					splits = data.groupby(attribute).apply(lambda x: x)
@@ -170,53 +187,130 @@ class Tree(Node):
 					for s in splits:
 						split = s[1]
 						if len(split) > 2:
-							split.pop(attribute)							
-							classifications = split[label] # classifications
+							split.pop(attribute), data.pop(attribute)
+							classifications = split[label]
 							GAIN += self.dataset_entropy - self.info(classifications)		
-					gains[GAIN] = [(attribute, data[attribute][index]), splits]
+					gains[GAIN] = [
+						(attribute, data[attribute][index]),
+						splits
+					]
 
 				else:
 					data = data.sort_values(attribute).reset_index(drop=True)
 
 					for index in data.index:
 						if (index > 0) and (index < max(data.index)):
-							splits = self.split(data, index)							
+							splits = self.split(data, index)
 							INFO = 0
 							for s in splits:
-								INFO += self.info(s[label])						
+								INFO += self.info(s[label])
+
 							# Order of splits is reveresed to have left output
 							# always be greater than for numerical attributes
 							GAIN = self.dataset_entropy - INFO
-							gains[GAIN] = [(attribute, data[attribute][index]), splits[::-1], GAIN]
+							
+							gains[GAIN] = [
+								(attribute, data[attribute][index]),
+								splits[::-1], 
+								GAIN
+							]
 
 		MAX_GAIN = max(gains)
 		optimal_split = gains[MAX_GAIN]
 		return optimal_split
 
+	def predict(self, test_data, label):
+		"""Makes a prediciton on test data based on previous training. The label
+		specifies which column in the dataframe is used for classification."""
+		# Reset index and prepare output object
+		test_data = test_data.reset_index(drop=True)
+		tmp = []
+
+		# Classify each sample in the dataset
+		for _ in test_data.iterrows():
+			row, sample = _
+			
+			left_branch = copy.deepcopy(self.left)
+			right_branch = copy.deepcopy(self.right)
+			split_attribute, condition = self.parent
+			
+			RUN_PREDICTION = True
+			count = -1
+			while RUN_PREDICTION:
+				count += 1
+				s = sample[split_attribute]
+
+				# Numerical attributes
+				if (type(s) == float) or (type(s) == int):
+					# Left
+					if s > condition:
+						if count == 0:
+							branch = left_branch
+						else:
+							branch = branch.left
+					# Right
+					else:
+						if count == 0:
+							branch = right_branch
+						else:
+							branch = branch.right
+
+				# Booleans
+				else:
+					if s:
+						if count == 0:
+							branch = left_branch
+						else:
+							branch = branch.left
+					# Right
+					else:
+						if count == 0:
+							branch = right_branch
+						else:
+							branch = branch.right
+
+				# Look for leaf
+				if branch.leaf is not None:
+					tmp.append(branch.leaf)
+					RUN_PREDICTION = False
+				else:
+					pass
+
+		predictions = pd.Series(tmp)
+		return predictions
 
 
 # CONTROL VARIABLES/OBJECTS ###################################################
-TRAIN_RATIO = 0.002
-depth = 2
+DATA_FRACTION = 1
+ENSEMBLE_SIZE = 2
+TRAIN_RATIO = 0.8#0.002
+depth = 5
 runs = 1
 save = False
 show = True
+gain_v_depth = False
+rate_v_depth = True
+
+test = False
 # Fixed random seed for reproducibility
-#np.random.seed(12345)
+np.random.seed(12345)
 
 
 # LOAD DATA ###################################################################
 # Dataframe
 df = pd.read_csv('siren_data_train.csv')
 
+
 # Variables
 NUM_ROWS = len(df.index)
-NUM_TRAIN = int(NUM_ROWS*TRAIN_RATIO)
-NUM_TEST = NUM_ROWS-NUM_TRAIN
+NUM_DATA_POINTS = int(NUM_ROWS*DATA_FRACTION)
+NUM_TRAIN = int(NUM_DATA_POINTS*TRAIN_RATIO)
 
-NUM_HEARD = len(df[df['heard'] == 1])
-NUM_NOT_HEARD = NUM_ROWS - NUM_HEARD
-print(NUM_HEARD, NUM_NOT_HEARD)
+#NUM_HEARD = len(df[df['heard'] == 1])
+#NUM_NOT_HEARD = NUM_ROWS - NUM_HEARD
+#print(NUM_HEARD, NUM_NOT_HEARD)
+df = df.iloc[0:NUM_DATA_POINTS]
+#print(df)
 
 
 # PRE-PROCESSING ##############################################################
@@ -237,7 +331,8 @@ print(df.columns)
 
 
 
-
+classifiers = []
+results = []
 
 
 
@@ -246,13 +341,6 @@ print(df.columns)
 #print(tree)
 #print(tree.X, tree.Y, tree.MAX_DEPTH)
 #print(tree.parent, tree.left, tree.right)
-
-
-
-
-
-
-
 
 
 # Express booleans as {True,False} instead of {0,1}
@@ -273,60 +361,74 @@ for attribute in df:
 	if attribute_type[attribute] == bool:
 		df[attribute] = df[attribute].astype(bool)
 
-#print(df)
 
 
+def classification_tree(train_data, test_data, label, max_depth):
+	pass
+	print('Fitting...')
+	tree = Tree(train_data, 'heard', max_depth)
+	tree.grow()		
+	print('Nodes: ',tree.node_count)
+	print('Leaves: ', tree.leaf_count)
 
-gns = []
-depths = np.arange(depth)
+	print('Evaluating performance...')
+	# Confusion matrix 
+	predict = tree.predict(train_data, label)
+	confusion_matrix = np.zeros((2,2))
+	for i, j in zip(test_data[label], predict):
+		if (i == True) and (j == True):
+			confusion_matrix[0][0] += 1
+		elif (i == False) and (j == True):
+			confusion_matrix[0][1] += 1
+		elif (i == True) and (j == False):
+			confusion_matrix[1][0] += 1
+		elif (i == False) and (j == False):
+			confusion_matrix[1][1] += 1
+	MISCLASSIFICATION_RATE = (confusion_matrix[0, 1] + confusion_matrix[1, 0])/np.sum(confusion_matrix)
+	ACCURACY = 1 - MISCLASSIFICATION_RATE
+	print(f'Misclassification rate:\t{MISCLASSIFICATION_RATE:.4f}')
+	print(f'Accuracy:\t\t\t\t{ACCURACY:.4f}')
+	return (MISCLASSIFICATION_RATE, ACCURACY), tree
 
-yy = []
+
 
 
 for run in range(runs):
-	print('Run: ', run)
-	#np.random.seed(run)
+	if runs > 1:
+		print('Run: ', run)
+	
+	#np.random.seed(123)
 	tmp_df = copy.deepcopy(df)
-
 	tmp_df = tmp_df.sample(frac=1).reset_index(drop=True)
-	#print(df)
-
-	# Extract and split labels
-	#labels = tmp_df.pop('heard')
-	#train_labels = labels[:NUM_TRAIN]
-	#test_labels = labels[NUM_TRAIN:]
 
 	# Extract and split features
-	train_df = tmp_df[:NUM_TRAIN]
-	test_df = tmp_df[NUM_TRAIN:]
+	train_df = tmp_df.iloc[:NUM_TRAIN]
+	test_df = tmp_df.iloc[NUM_TRAIN:]
 
-	tree = Tree(train_df, 'heard', depth)
-	tree.grow()
-	
-	print(tree.node_count)
-	#print(tree)
-	#print(tree.gains)
-	#gns.append(list(tree.gains.values()))
-	
-	x = tree.gains.keys(); y = tree.gains.values()
-	yy.append(list(y))
-	#y = np.mean(, axis=1)
 
-	plt.plot(x,y, '.', label=f'Run {run}')
+	if test is False:
+		#print(confusion_matrix)
+		result, tree = classification_tree(train_df, test_df, 'heard', depth)
+
+		if gain_v_depth:
+			x = tree.gains.keys(); y = tree.gains.values()
+			yy.append(list(y))
+			plt.plot(x,y, '.', label=f'Run {run}')
 
 print('Finished!')
-#print(tree.left.X)
-out_df = pd.DataFrame(yy)
-out_df['avg'] = out_df.mean(axis=0)
-plt.plot(out_df.index, out_df['avg'], 'k', label='Average', zorder=0) 
+
+if gain_v_depth:
+	out_df = pd.DataFrame(yy)
+	out_df['avg'] = out_df.mean(axis=0)
+	plt.plot(out_df.index, out_df['avg'], 'k', label='Average', zorder=0) 
 
 
-plt.title(f'Depth optimisation with {TRAIN_RATIO:.0%} of data used for training')
-plt.xlabel('Depth')
-plt.ylabel('Max gain')
+	plt.title(f'Depth optimisation with {TRAIN_RATIO:.0%} of data used for training')
+	plt.xlabel('Depth')
+	plt.ylabel('Max gain')
 
-if save:
-	out_df.to_csv(f'{TRAIN_RATIO*100:.0%}trainsize_{depth}maxdepth_{runs}runs.txt', sep=' ')
+	if save:
+		out_df.to_csv(f'{TRAIN_RATIO*100:.0%}trainsize_{depth}maxdepth_{runs}runs.txt', sep=' ')
 
 plt.legend()
 if show:
