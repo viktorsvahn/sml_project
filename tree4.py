@@ -7,6 +7,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+from sklearn.datasets import load_iris
+from sklearn.model_selection import cross_val_score
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score
+
+
 attribute_type = {
 	#'near_fid':'Categorical', 	# categorical, should this be included?
 	'near_angle':'Numerical',	# Uniform on x \in [-180,180]
@@ -50,11 +56,13 @@ class Tree(Node):
 		data,
 		label,
 		MAX_DEPTH=None,
+		FOREST_RATE=1,
 		*args
 	):
 		super().__init__(*args)
 		self.X = data
 		self.label = label
+		self.FOREST_RATE = FOREST_RATE
 		
 		self.NUM_SAMPLES = len(self.X)
 		self.attributes = self.X.columns
@@ -175,6 +183,7 @@ class Tree(Node):
 		    - its associated Igain"""
 		
 		gains = {}
+		data = data.sample(frac=self.FOREST_RATE)
 		for attribute in self.attributes:
 			if attribute != label:
 				attribute_realisations = data[attribute]
@@ -281,17 +290,26 @@ class Tree(Node):
 
 
 # CONTROL VARIABLES/OBJECTS ###################################################
-DATA_FRACTION = 1
-ENSEMBLE_SIZE = 2
+# Bagging params
+DATA_FRACTION = 0.2
+ENSEMBLE_SIZE = 1
+FOREST_RATE = 1
+
+# Decision tree params
 TRAIN_RATIO = 0.8#0.002
 depth = 5
 runs = 1
 save = False
-show = True
+show = False
 gain_v_depth = False
-rate_v_depth = True
+rate_v_depth = False
 
+
+k_fold_validation = False
+k = 1
 test = False
+perf_v_size = True
+perf_v_forest_rate = False
 # Fixed random seed for reproducibility
 np.random.seed(12345)
 
@@ -302,14 +320,12 @@ df = pd.read_csv('siren_data_train.csv')
 
 
 # Variables
-NUM_ROWS = len(df.index)
-NUM_DATA_POINTS = int(NUM_ROWS*DATA_FRACTION)
-NUM_TRAIN = int(NUM_DATA_POINTS*TRAIN_RATIO)
+
 
 #NUM_HEARD = len(df[df['heard'] == 1])
 #NUM_NOT_HEARD = NUM_ROWS - NUM_HEARD
 #print(NUM_HEARD, NUM_NOT_HEARD)
-df = df.iloc[0:NUM_DATA_POINTS]
+#df = df.iloc[0:NUM_DATA_POINTS]
 #print(df)
 
 
@@ -363,19 +379,48 @@ for attribute in df:
 
 
 
-def classification_tree(train_data, test_data, label, max_depth):
+def classification_tree(train_data, test_data, label, max_depth, ensemble_size=1, forest_rate=1):
 	pass
-	print('Fitting...')
-	tree = Tree(train_data, 'heard', max_depth)
-	tree.grow()		
-	print('Nodes: ',tree.node_count)
-	print('Leaves: ', tree.leaf_count)
+
+	bag = []
+	for b in range(ensemble_size):
+		if ensemble_size == 1:
+			print('Fitting...')
+		else:
+			print(f'Fitting system {b}')
+
+		tree = Tree(train_data, 'heard', max_depth, forest_rate)
+		tree.grow()		
+		print('Nodes: ',tree.node_count)
+		print('Leaves: ', tree.leaf_count)
+		predict = tree.predict(test_data, label)
+		bag.append(predict)
+
+
+		# Single decision tree using sklearn for comparison
+		train = copy.deepcopy(train_data)
+		test = copy.deepcopy(test_data)
+
+		clf = DecisionTreeClassifier(criterion='entropy', splitter='best', max_depth=max_depth)
+		y_train = train.pop(label)
+		y_test = test.pop(label)
+		clf.fit(train, y_train)
+		predictions = clf.predict(test)
+		#print(predictions)
+		#print(clf.tree_.max_depth)
+		sklearn_misclass = 1-accuracy_score(y_test, predictions)
+		#print(predictions, len(predictions))
+
+
+
+	print('Pooling...')
+	bag_df = pd.DataFrame(np.array(bag).T)
+	majority_prediction = bag_df.mode(axis=1)[0]
 
 	print('Evaluating performance...')
-	# Confusion matrix 
-	predict = tree.predict(train_data, label)
+	# Confusion matrix
 	confusion_matrix = np.zeros((2,2))
-	for i, j in zip(test_data[label], predict):
+	for i, j in zip(test_data[label], majority_prediction):
 		if (i == True) and (j == True):
 			confusion_matrix[0][0] += 1
 		elif (i == False) and (j == True):
@@ -386,10 +431,11 @@ def classification_tree(train_data, test_data, label, max_depth):
 			confusion_matrix[1][1] += 1
 	MISCLASSIFICATION_RATE = (confusion_matrix[0, 1] + confusion_matrix[1, 0])/np.sum(confusion_matrix)
 	ACCURACY = 1 - MISCLASSIFICATION_RATE
-	print(f'Misclassification rate:\t{MISCLASSIFICATION_RATE:.4f}')
+
+
+	print(f'Misclassification rate:\t{MISCLASSIFICATION_RATE:.4f}\t({sklearn_misclass:.4f} using sklearn)')
 	print(f'Accuracy:\t\t\t\t{ACCURACY:.4f}')
 	return (MISCLASSIFICATION_RATE, ACCURACY), tree
-
 
 
 
@@ -399,21 +445,33 @@ for run in range(runs):
 	
 	#np.random.seed(123)
 	tmp_df = copy.deepcopy(df)
-	tmp_df = tmp_df.sample(frac=1).reset_index(drop=True)
+	tmp_df = tmp_df.sample(frac=DATA_FRACTION).reset_index(drop=True)
+	NUM_ROWS = len(tmp_df.index)
+	NUM_TRAIN = int(NUM_ROWS*TRAIN_RATIO)
 
 	# Extract and split features
 	train_df = tmp_df.iloc[:NUM_TRAIN]
 	test_df = tmp_df.iloc[NUM_TRAIN:]
 
-
+	
 	if test is False:
-		#print(confusion_matrix)
-		result, tree = classification_tree(train_df, test_df, 'heard', depth)
 
-		if gain_v_depth:
+		result, tree = classification_tree(train_df, test_df, 'heard', depth, ENSEMBLE_SIZE, FOREST_RATE)
+		
+		if perf_v_size:
+			pass
+
+		elif perf_v_forest_rate:
+			pass
+		
+		elif gain_v_depth:
 			x = tree.gains.keys(); y = tree.gains.values()
 			yy.append(list(y))
 			plt.plot(x,y, '.', label=f'Run {run}')
+
+		else:
+			pass
+		
 
 print('Finished!')
 
@@ -430,6 +488,6 @@ if gain_v_depth:
 	if save:
 		out_df.to_csv(f'{TRAIN_RATIO*100:.0%}trainsize_{depth}maxdepth_{runs}runs.txt', sep=' ')
 
-plt.legend()
 if show:
+	plt.legend()
 	plt.show()
