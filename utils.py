@@ -33,8 +33,8 @@ def split_data(df):
 
 def build_X_y():
 
-    train = pd.read_csv("siren_data_train_TRAIN.csv")
-    test = pd.read_csv("siren_data_train_TEST.csv")
+    train = pd.read_csv("siren_data_train_TRAIN.csv", index_col=0)
+    test = pd.read_csv("siren_data_train_TEST.csv", index_col=0)
 
     # Divide data sets
     y_col = "heard"
