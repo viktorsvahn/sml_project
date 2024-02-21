@@ -65,8 +65,8 @@ def test_models(X_train_full, y_train_full, iterations=5):
 
         clfs = {
             "AdaBoost": AdaBoostClassifier(),
-            "Log-loss GB": GradientBoostingClassifier(),
-            "Naive (dist threshold=6000m)": NaiveThresholdModel(col="distance"),
+            "Gradient boosting": GradientBoostingClassifier(),
+            "Naive threshold": NaiveThresholdModel(col="distance"),
             # "Random forest": RandomForestClassifier(),
             # "Bagging": BaggingClassifier(),
             # "Decision tree": DecisionTreeClassifier(),
@@ -82,22 +82,17 @@ def test_models(X_train_full, y_train_full, iterations=5):
             y_val_pred = clf.predict(X_val)
             misclassification_rate_test.loc[clf_name, i] = np.mean(y_val != y_val_pred)
     misclassification_rate = pd.DataFrame()
-    misclassification_rate[f"train (mean of {iterations} iterations)"] = (
-        misclassification_rate_train.mean(axis=1)
-    )
-    misclassification_rate[f"validation (mean of {iterations} iterations)"] = (
-        misclassification_rate_test.mean(axis=1)
-    )
+    misclassification_rate[f"train"] = misclassification_rate_train.mean(axis=1)
+    misclassification_rate[f"validation"] = misclassification_rate_test.mean(axis=1)
     misclassification_rate.columns.name = "Data set"
     misclassification_rate.index.name = "Model"
-    misclassification_rate = misclassification_rate.sort_values(
-        f"validation (mean of {iterations} iterations)"
-    )
+    misclassification_rate = misclassification_rate.sort_values(f"validation")
     print(misclassification_rate)
     fig = px.bar(
         misclassification_rate,
         title="Misclassification rate for different models",
         barmode="group",
+        labels={"Model": "", "value": "Misclassification error"},
     )
     fig.update_layout(
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="left", x=0)
@@ -131,9 +126,7 @@ def test_features(X_train_full, y_train_full, iterations=5):
             clf.fit(X_train_dropped, y_train)
             y_train_pred = clf.predict(X_train_dropped)
             cols_to_drop_name = (
-                cols_to_drop
-                if isinstance(cols_to_drop, str)
-                else ",".join(cols_to_drop)
+                cols_to_drop if isinstance(cols_to_drop, str) else "4 least important"
             )
             misclassification_rate_train.loc[cols_to_drop_name, i] = np.mean(
                 y_train != y_train_pred
@@ -143,21 +136,19 @@ def test_features(X_train_full, y_train_full, iterations=5):
                 y_val != y_val_pred
             )
     misclassification_rate = pd.DataFrame()
-    misclassification_rate[f"train (mean of {iterations} iterations)"] = (
-        misclassification_rate_train.mean(axis=1)
-    )
-    misclassification_rate[f"validation (mean of {iterations} iterations)"] = (
-        misclassification_rate_test.mean(axis=1)
-    )
+    misclassification_rate[f"train"] = misclassification_rate_train.mean(axis=1)
+    misclassification_rate[f"validation"] = misclassification_rate_test.mean(axis=1)
     misclassification_rate.columns.name = "Data set"
     misclassification_rate.index.name = "Dropped columns"
-    misclassification_rate = misclassification_rate.sort_values(
-        f"validation (mean of {iterations} iterations)"
-    )
+    misclassification_rate = misclassification_rate.sort_values(f"validation")
     fig = px.bar(
         misclassification_rate,
         title="Misclassification rate for different sets of dropped features",
         barmode="group",
+        labels={"Dropped columns": "", "value": "Misclassification error"},
+    )
+    fig.update_layout(
+        legend=dict(orientation="h", yanchor="top", y=0.9, xanchor="left", x=0.05)
     )
     fig.show()
     pass
@@ -190,12 +181,8 @@ def test_n_estimators(X_train_full, y_train_full, iterations=5):
                 y_val != y_val_pred
             )
     misclassification_rate = pd.DataFrame()
-    misclassification_rate[f"train (mean of {iterations} iterations)"] = (
-        misclassification_rate_train.mean(axis=1)
-    )
-    misclassification_rate[f"validation (mean of {iterations} iterations)"] = (
-        misclassification_rate_test.mean(axis=1)
-    )
+    misclassification_rate[f"train"] = misclassification_rate_train.mean(axis=1)
+    misclassification_rate[f"validation"] = misclassification_rate_test.mean(axis=1)
     fig = px.line(
         misclassification_rate, title="Misclassification rate vs number of estimators"
     )
@@ -231,12 +218,8 @@ def test_learning_rate(X_train_full, y_train_full, iterations=5):
             )
 
     misclassification_rate = pd.DataFrame()
-    misclassification_rate[f"train (mean of {iterations} iterations)"] = (
-        misclassification_rate_train.mean(axis=1)
-    )
-    misclassification_rate[f"validation (mean of {iterations} iterations)"] = (
-        misclassification_rate_test.mean(axis=1)
-    )
+    misclassification_rate[f"train"] = misclassification_rate_train.mean(axis=1)
+    misclassification_rate[f"validation"] = misclassification_rate_test.mean(axis=1)
     fig = px.line(
         misclassification_rate, title="Misclassification rate vs learning_rate"
     )
@@ -299,10 +282,10 @@ def tune_gb(X_train, y_train, X_test, y_test):
 
     # Perform grid search
     param_grid = {
-        "max_depth": [2, 3, 4],
+        "max_depth": [1, 2, 3, 4],
         "min_samples_leaf": [1, 2, 3, 4, 5],
-        "max_features": [6, 7, 8, 9],
-        "subsample": [0.9, 0.95, 1],  # 1.0 seems best
+        "max_features": [2, 3, 4, 5, 6],
+        "subsample": [0.5, 0.75, 1],  # 1.0 seems best
         "min_weight_fraction_leaf": [0, 0.01, 0.02],
     }
 
@@ -351,29 +334,29 @@ def load_model(filename=None):
 def main():
 
     # Read data
-    # df = read_data()
+    df = read_data()
 
     # Pre-process, note that normalization is not needed for gradient boosted trees
-    # df = create_new_features(df)
+    df = create_new_features(df)
 
     # Split data and save to csv
-    # split_data(df)
+    split_data(df)
     X_train, y_train, X_test, y_test = build_X_y()
 
     # Rough first test
-    # test_models(X_train, y_train, iterations=50)
+    test_models(X_train, y_train, iterations=50)
     # Ada boost generalizes relatively better but Log loss GB is still slightly better on the val data set
     # Interestingly the two models report quite different importance of the features. Eg while AdaBoost have near_fid as the next most important feature, it is deemed practically useless by the log-loss GB model.
 
-    # test_n_estimators(X_train, y_train, iterations=50)
+    test_n_estimators(X_train, y_train, iterations=50)
     # ~60 for learning_rate = 0.1
 
-    # test_learning_rate(X_train, y_train, iterations=50)
+    test_learning_rate(X_train, y_train, iterations=50)
     # ~0.1 for n_estimators = 60
 
-    # test_n_estimators_and_learning_rate(X_train, y_train, iterations=25)
+    test_n_estimators_and_learning_rate(X_train, y_train, iterations=25)
 
-    # test_features(X_train, y_train, iterations=50)
+    test_features(X_train, y_train, iterations=50)
     # Results not fully clear but 50 iterations suggest excluding ["cos_angle", "sin_angle", "near_fid"]. Possible that buiklding should also be excluded.
 
     # Tune log-loss gb using the found hyper parameters, now using the full training dataset (including the val part)
