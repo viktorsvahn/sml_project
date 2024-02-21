@@ -15,29 +15,29 @@ from sklearn.metrics import accuracy_score
 
 # CONTROL VARIABLES/OBJECTS ###################################################
 # Bagging params
-DATA_FRACTION = 0.3
-ENSEMBLE_SIZE = 1
+DATA_FRACTION = 1
+ENSEMBLE_SIZE = 10
 BAGGING_RATIO = 1
 NUM_POINTS = 10
 
 max_features = 'sqrt' # sqrt or None
 
 # Decision tree params
-depth = 2
+depth = 10
 save = False
 show = True
 
 # Modes of analysis
-test = True
+test = False
+feature_selection = False
 perf_v_depth = False
 
-feature_selection = False
 
 perf_v_ensemble_size = True
 perf_v_bag_ratio = False
 
 # Fixed random seed for reproducibility
-seed = 12345
+seed = None#123456
 #np.random.seed(seed)
 
 
@@ -47,21 +47,18 @@ test_df = pd.read_csv('siren_data_train_TEST.csv')
 
 
 # PRE-PROCESSING ##############################################################
-train_df.pop('near_fid')
-train_df.pop('Unnamed: 0')
-test_df.pop('near_fid')
-test_df.pop('Unnamed: 0')
 
 # Express booleans as {True,False} instead of {0,1}
+# Also filter unwanted features away by commenting them away
 attribute_type = {
-	'near_fid':'Categorical', 	# categorical, should this be included?
-	'Unnamed: 0':'Categorical', 	# categorical, should this be included?
-	'near_angle':'Numerical',	# Uniform on x \in [-180,180]
-	'near_x':'Numerical',
-	'near_y':'Numerical',
-	'xcoor':'Numerical',
-	'ycoor':'Numerical',
-	'distance':'Numerical',
+	#'near_fid':'Categorical', 	# categorical, should this be included?
+	#'Unnamed: 0':'Categorical', 	# categorical, should this be included?
+	#'near_angle':'Numerical',	# Uniform on x \in [-180,180]
+	#'near_x':'Numerical',
+	#'near_y':'Numerical',
+	#'xcoor':'Numerical',
+	#'ycoor':'Numerical',
+	#'distance':'Numerical',
 	'distance_log':'Numerical',
 	'sin_angle':'Numerical',
 	'cos_angle':'Numerical',
@@ -69,19 +66,25 @@ attribute_type = {
 	'heard':bool,			# label: N/A
 	'building':bool,		# bool
 	'noise':bool,			# bool
-	'in_vehicle':bool,		# bool
+	#'in_vehicle':bool,		# bool
 	'no_windows':bool,		# bool
-	'asleep':bool,			# bool
+	#'asleep':bool,			# bool
 }
 
 NUM_ROWS = len(train_df.index)
 NUM_ROWS_USE = int(NUM_ROWS*DATA_FRACTION)
 train_df = train_df[:NUM_ROWS_USE]
 #print(train_df.columns)
+
 for attribute in train_df.columns:
-	if attribute_type[attribute] == bool:
-		train_df[attribute] = train_df[attribute].astype(bool)
-		test_df[attribute] = test_df[attribute].astype(bool)
+	if attribute in attribute_type.keys():
+		if attribute_type[attribute] == bool:
+			train_df[attribute] = train_df[attribute].astype(bool)
+			test_df[attribute] = test_df[attribute].astype(bool)
+	else:
+		train_df.pop(attribute)
+		test_df.pop(attribute)
+
 
 
 # FUNCTIONS ###################################################################
@@ -568,6 +571,29 @@ if test:
 		max_features=max_features
 	)
 
+elif feature_selection:
+	tmp = []
+	runs = 10
+	for _ in range(runs):
+		misclassification_rate, accuracy, tree = classification_tree(
+			train_df,
+			test_df, 
+			'heard', 
+			BAGGING_RATIO, 
+			depth, 
+			ENSEMBLE_SIZE, 
+			max_features=max_features
+		)
+		tmp.append(tree.features)
+	
+	features = {k:v for x in tmp for k,v in x.items()}
+	plt.bar(features.keys(), features.values())
+	
+	plt.title(f'Barplot showing feature frequency from {runs} runs using a depth of {depth}')
+	plt.xticks(rotation=-45)
+	plt.tight_layout()
+	plt.show()
+
 
 else:
 	# Performance dependence on ensemble size
@@ -618,6 +644,8 @@ else:
 		
 		plt.xlabel('Ensemble size')
 		plt.ylabel('Misclassification rate')
+		
+
 		"""
 		for size in sizes:
 			misclass_rates = []
@@ -745,6 +773,8 @@ else:
 
 		if save:
 			out_df.to_csv(f'{TRAIN_RATIO*100:.0%}trainsize_{depth}maxdepth_{runs}runs.txt', sep=' ')
+	
+
 
 
 	print('Finished!')
