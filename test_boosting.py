@@ -364,6 +364,13 @@ def main():
     # gb_best_clf = load_model()
     pass
 
+def evaluate_test_data():
+    df = read_data(path="test_without_labels.csv")
+    df = create_new_features(df)
+    clf=load_model()
+    clf.
+
 
 if __name__ == "__main__":
-    main()
+    # main()
+    evaluate_test_data()

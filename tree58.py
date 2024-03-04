@@ -15,10 +15,10 @@ from sklearn.metrics import accuracy_score
 # CONTROL VARIABLES/OBJECTS ###################################################
 # Bagging/random forest params
 DATA_FRACTION = 1	# Only used for testing purposes
-ENSEMBLE_SIZE = 1
+ENSEMBLE_SIZE = 5
 BAGGING_RATIO = 1
 NUM_POINTS = 10
-max_features = None#'sqrt' # sqrt or None
+max_features = 'sqrt' #'sqrt' # sqrt or None
 
 # Decision tree params
 depth = 3
@@ -266,13 +266,12 @@ class Tree(Node):
 				k = math.ceil(np.sqrt(d))
 			elif self.max_features == 'log':
 				k = math.ceil(np.log2(d))
-			
 			random_attributes = list(np.random.choice(tmp_attr, k, replace=False))
 			random_attributes.append(label)
-			data = data[random_attributes]
+			# data = data[random_attributes]
 
 		# Attempt splits
-		for attribute in data.columns:
+		for attribute in random_attributes:
 			if attribute != label:
 				attribute_realisations = data[attribute]
 
