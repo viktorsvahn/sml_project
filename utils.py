@@ -1,4 +1,5 @@
-"""Läser data, skapar features och skriver csv-filer med train och test data separerat
+"""Read data, create features and write csv-files where the train and
+test data is separated.
 """
 
 import pandas as pd
