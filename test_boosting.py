@@ -291,8 +291,18 @@ def tune_gb(X_train, y_train, X_test, y_test):
     print("Mean CV-score for best estimator:")
     print(clf.best_score_)
 
-    # Train model with found paramters using lower learning rate and higher n_estimators
-    gb_best_clf = clf.best_estimator_
+    # Save model as a pickle file
+    with open("gb_best_clf.pickle", "wb") as f:
+        pickle.dump(gb_best_clf, f)
+
+
+def evaluate_model(X_train, y_train, X_test, y_test):
+
+    X_train, X_test = drop_default_columns(X_train, X_test)
+    X_train = X_train.drop(columns=["cos_angle", "sin_angle", "near_fid", "building"])
+    X_test = X_test.drop(columns=["cos_angle", "sin_angle", "near_fid", "building"])
+
+    gb_best_clf = load_model()
     y_train_pred = gb_best_clf.predict(X_train)
     print(
         f"Best estimator misclassification rate on train data: \
@@ -314,11 +324,6 @@ def tune_gb(X_train, y_train, X_test, y_test):
     print("Confusion matrix")
     print(conf_mat)
 
-    with open("gb_best_clf.pickle", "wb") as f:
-        pickle.dump(gb_best_clf, f)
-
-    return gb_best_clf
-
 
 def load_model(filename=None):
     filename = "gb_best_clf.pickle" if filename is None else filename
@@ -327,12 +332,33 @@ def load_model(filename=None):
     return gb_best_clf
 
 
+def train_model_on_all_data(X_train, y_train, X_test, y_test):
+
+    X_train, X_test = drop_default_columns(X_train, X_test)
+    X_train = X_train.drop(columns=["cos_angle", "sin_angle", "near_fid", "building"])
+    X_test = X_test.drop(columns=["cos_angle", "sin_angle", "near_fid", "building"])
+    X = pd.concat([X_train, X_test])
+    y = pd.concat([y_train, y_test])
+    gb_best_clf = load_model()
+    gb_best_clf.fit(X, y)
+
+    y_pred = gb_best_clf.predict(X)
+    print(
+        f"Best estimator misclassification rate on all data as train data: \
+            {np.mean(y!=y_pred):.3f}"
+    )
+
+    # Save model as a pickle file
+    with open("gb_best_clf_all_data.pickle", "wb") as f:
+        pickle.dump(gb_best_clf, f)
+
+
 def evaluate_test_data():
     X_test = read_data(path="test_without_labels.csv")
     X_test = create_new_features(X_test)
     _, X_test = drop_default_columns(X_test, X_test)
     X_test = X_test.drop(columns=["cos_angle", "sin_angle", "near_fid", "building"])
-    clf = load_model()
+    clf = load_model("gb_best_clf_all_data.pickle")
     Y_test_pred = pd.DataFrame(clf.predict(X_test)).T
     Y_test_pred.to_csv("predictions.csv", index=False, header=None)
 
@@ -367,14 +393,17 @@ def main():
 
     test_features(X_train, y_train, iterations=50)
     # Results not fully clear but 50 iterations suggest excluding
-    # ["cos_angle", "sin_angle", "near_fid"].
-    # Possible that buiklding should also be excluded.
+    # ["cos_angle", "sin_angle", "near_fid", "building"].
 
-    # Tune log-loss gb using the found hyper parameters, now using the full training dataset
-    # (including the val part)
-
+    # Tune the gb-model using GridSearchCV
     tune_gb(X_train, y_train, X_test, y_test)
-    # gb_best_clf = load_model()
+
+    # Evaluate the best found model on the train and test data set
+    evaluate_model(X_train, y_train, X_test, y_test)
+
+    # train the best found model, now using the full combined train and test dataset
+    train_model_on_all_data(X_train, y_train, X_test, y_test)
+
     pass
 
 
