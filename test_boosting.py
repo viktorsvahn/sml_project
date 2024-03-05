@@ -353,7 +353,7 @@ def train_model_on_all_data(X_train, y_train, X_test, y_test):
         pickle.dump(gb_best_clf, f)
 
 
-def evaluate_test_data():
+def evaluate_new_test_data():
     X_test = read_data(path="test_without_labels.csv")
     X_test = create_new_features(X_test)
     _, X_test = drop_default_columns(X_test, X_test)
@@ -404,9 +404,11 @@ def main():
     # train the best found model, now using the full combined train and test dataset
     train_model_on_all_data(X_train, y_train, X_test, y_test)
 
+    # Evaluate the new test data set using the best model
+    evaluate_new_test_data()
+
     pass
 
 
 if __name__ == "__main__":
     main()
-    evaluate_test_data()
