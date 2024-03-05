@@ -1,0 +1,5 @@
+Olle Viotti wrote about the gradient boosting method and wrote the exploratory data analysis part after a common discussion.
+
+Victor Svahn implemented and wrote about the different types of classificaton trees.
+
+Both authors discussed the results and contributed to the final report

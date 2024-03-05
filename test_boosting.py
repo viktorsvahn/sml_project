@@ -19,19 +19,12 @@ from tqdm import tqdm
 class NaiveThresholdModel:
 
     def __init__(self, col=None):
-        self,
         self.col = col if col is None else "distance"
         self.threshold = None
 
     def fit(self, X, y):
-        "Minimize loss by finding the optimal threshold for self.col"
-
-        # Find optimal threshold as first bin where the fraction is below 0.5
-        bins = pd.cut(X.loc[:, self.col], bins=np.arange(0, 50000, 1000))
-        sum_per_bin = y.groupby(bins, observed=False).sum()
-        count_per_bin = y.groupby(bins, observed=False).count()
-        fraction_per_bin = sum_per_bin / count_per_bin
-        self.threshold = (fraction_per_bin < 0.5).idxmax().left
+        "Implemented as a dummy"
+        self.threshold = 6000
 
     def predict(self, X):
         return (X.loc[:, self.col] < self.threshold).astype(int).values
@@ -39,7 +32,8 @@ class NaiveThresholdModel:
 
 def drop_default_columns(X_train, X_test):
     # Drop features that are redundant.
-    # Coordinates are converted to distance and any effect from exact location is deemed to not generalize
+    # Coordinates are converted to distance and any effect from exact location is deemed to not
+    # generalize
     # Distance isincluded as log(distance)
     # Near angle is included as sin(angle) and cos(angle)
 
@@ -82,11 +76,11 @@ def test_models(X_train_full, y_train_full, iterations=5):
             y_val_pred = clf.predict(X_val)
             misclassification_rate_test.loc[clf_name, i] = np.mean(y_val != y_val_pred)
     misclassification_rate = pd.DataFrame()
-    misclassification_rate[f"train"] = misclassification_rate_train.mean(axis=1)
-    misclassification_rate[f"validation"] = misclassification_rate_test.mean(axis=1)
+    misclassification_rate["train"] = misclassification_rate_train.mean(axis=1)
+    misclassification_rate["validation"] = misclassification_rate_test.mean(axis=1)
     misclassification_rate.columns.name = "Data set"
     misclassification_rate.index.name = "Model"
-    misclassification_rate = misclassification_rate.sort_values(f"validation")
+    misclassification_rate = misclassification_rate.sort_values("validation")
     print(misclassification_rate)
     fig = px.bar(
         misclassification_rate,
@@ -136,11 +130,11 @@ def test_features(X_train_full, y_train_full, iterations=5):
                 y_val != y_val_pred
             )
     misclassification_rate = pd.DataFrame()
-    misclassification_rate[f"train"] = misclassification_rate_train.mean(axis=1)
-    misclassification_rate[f"validation"] = misclassification_rate_test.mean(axis=1)
+    misclassification_rate["train"] = misclassification_rate_train.mean(axis=1)
+    misclassification_rate["validation"] = misclassification_rate_test.mean(axis=1)
     misclassification_rate.columns.name = "Data set"
     misclassification_rate.index.name = "Dropped columns"
-    misclassification_rate = misclassification_rate.sort_values(f"validation")
+    misclassification_rate = misclassification_rate.sort_values("validation")
     fig = px.bar(
         misclassification_rate,
         title="Misclassification rate for different sets of dropped features",
@@ -181,8 +175,8 @@ def test_n_estimators(X_train_full, y_train_full, iterations=5):
                 y_val != y_val_pred
             )
     misclassification_rate = pd.DataFrame()
-    misclassification_rate[f"train"] = misclassification_rate_train.mean(axis=1)
-    misclassification_rate[f"validation"] = misclassification_rate_test.mean(axis=1)
+    misclassification_rate["train"] = misclassification_rate_train.mean(axis=1)
+    misclassification_rate["validation"] = misclassification_rate_test.mean(axis=1)
     fig = px.line(
         misclassification_rate, title="Misclassification rate vs number of estimators"
     )
@@ -218,8 +212,8 @@ def test_learning_rate(X_train_full, y_train_full, iterations=5):
             )
 
     misclassification_rate = pd.DataFrame()
-    misclassification_rate[f"train"] = misclassification_rate_train.mean(axis=1)
-    misclassification_rate[f"validation"] = misclassification_rate_test.mean(axis=1)
+    misclassification_rate["train"] = misclassification_rate_train.mean(axis=1)
+    misclassification_rate["validation"] = misclassification_rate_test.mean(axis=1)
     fig = px.line(
         misclassification_rate, title="Misclassification rate vs learning_rate"
     )
@@ -301,12 +295,14 @@ def tune_gb(X_train, y_train, X_test, y_test):
     gb_best_clf = clf.best_estimator_
     y_train_pred = gb_best_clf.predict(X_train)
     print(
-        f"Best estimator misclassification rate on train data: {np.mean(y_train!=y_train_pred):.3f}"
+        f"Best estimator misclassification rate on train data: \
+            {np.mean(y_train!=y_train_pred):.3f}"
     )
 
     y_test_pred = gb_best_clf.predict(X_test)
     print(
-        f"Best estimator misclassification rate on test data: {np.mean(y_test!=y_test_pred):.3f}"
+        f"Best estimator misclassification rate on test data: \
+            {np.mean(y_test!=y_test_pred):.3f}"
     )
 
     print("Found parameters:")
@@ -331,6 +327,16 @@ def load_model(filename=None):
     return gb_best_clf
 
 
+def evaluate_test_data():
+    X_test = read_data(path="test_without_labels.csv")
+    X_test = create_new_features(X_test)
+    _, X_test = drop_default_columns(X_test, X_test)
+    X_test = X_test.drop(columns=["cos_angle", "sin_angle", "near_fid", "building"])
+    clf = load_model()
+    Y_test_pred = pd.DataFrame(clf.predict(X_test)).T
+    Y_test_pred.to_csv("predictions.csv", index=False, header=None)
+
+
 def main():
 
     # Read data
@@ -345,8 +351,11 @@ def main():
 
     # Rough first test
     test_models(X_train, y_train, iterations=50)
-    # Ada boost generalizes relatively better but Log loss GB is still slightly better on the val data set
-    # Interestingly the two models report quite different importance of the features. Eg while AdaBoost have near_fid as the next most important feature, it is deemed practically useless by the log-loss GB model.
+    # Ada boost generalizes relatively better but Log loss GB is still slightly better
+    # on the val data set
+    # Interestingly the two models report quite different importance of the features.
+    # Eg while AdaBoost have near_fid as the next most important feature, it is deemed
+    # practically useless by the log-loss GB model.
 
     test_n_estimators(X_train, y_train, iterations=50)
     # ~60 for learning_rate = 0.1
@@ -357,20 +366,18 @@ def main():
     test_n_estimators_and_learning_rate(X_train, y_train, iterations=25)
 
     test_features(X_train, y_train, iterations=50)
-    # Results not fully clear but 50 iterations suggest excluding ["cos_angle", "sin_angle", "near_fid"]. Possible that buiklding should also be excluded.
+    # Results not fully clear but 50 iterations suggest excluding
+    # ["cos_angle", "sin_angle", "near_fid"].
+    # Possible that buiklding should also be excluded.
 
-    # Tune log-loss gb using the found hyper parameters, now using the full training dataset (including the val part)
+    # Tune log-loss gb using the found hyper parameters, now using the full training dataset
+    # (including the val part)
+
     tune_gb(X_train, y_train, X_test, y_test)
     # gb_best_clf = load_model()
     pass
 
-def evaluate_test_data():
-    df = read_data(path="test_without_labels.csv")
-    df = create_new_features(df)
-    clf=load_model()
-    clf.
-
 
 if __name__ == "__main__":
-    # main()
+    main()
     evaluate_test_data()

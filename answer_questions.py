@@ -22,14 +22,16 @@ def answer_distance(df):
         color="heard",
         histnorm="probability",
         barmode="overlay",
-        title="Normalised histograms of distance for persons<br>who heard or did not hear the siren",
+        title="Normalised histograms of distance for persons<br>who heard or did not hear\
+            the siren",
     )
     fig.update_layout(
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="left", x=0)
     )
     fig.show()
 
-    # => Those who heard the siren were generally closer to it, while those who did not hear it generally were further away.
+    # => Those who heard the siren were generally closer to it,
+    # while those who did not hear it generally were further away.
 
     fig = px.histogram(
         df,
@@ -37,7 +39,8 @@ def answer_distance(df):
         color="heard",
         histnorm="probability",
         barmode="overlay",
-        title="Normalised histograms of logged distance for persons<br>who heard or did not hear the siren",
+        title="Normalised histograms of logged distance for persons<br>who heard or did \
+            not hear the siren",
     )
     fig.update_layout(
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="left", x=0)
@@ -78,16 +81,20 @@ def answer_distance(df):
     )
     fig.show()
     print(
-        "(i) Does the distance to the nearest horn affect whether a person hears the siren or not?"
+        "(i) Does the distance to the nearest horn affect whether a person hears the siren\
+            or not?"
     )
     print(
-        "There is a clear trend towards lower fraction of people hearing the siren for larger distances up to around 20000 m (~e^10)"
+        "There is a clear trend towards lower fraction of people hearing the siren for larger\
+            distances up to around 20000 m (~e^10)"
     )
     print(
-        "There is a cluster of data points above 20000 m. Considering the previous trend that cluster have a surprisinlgy high fraction of people that heard the siren."
+        "There is a cluster of data points above 20000 m. Considering the previous trend that\
+            cluster have a surprisinlgy high fraction of people that heard the siren."
     )
     print(
-        "It is also interesting to see that several people at distances between 50 and 110 km from the siren claim to have heard it. These are likely to be errors in the data?"
+        "It is also interesting to see that several people at distances between 50 and 110 km\
+            from the siren claim to have heard it. These are likely to be errors in the data?"
     )
 
 
@@ -139,17 +146,21 @@ def answer_direction(df):
     fraction_per_angle_bin.name = "Fraction heard"
     fig = px.bar(
         fraction_per_angle_bin,
-        title="Fraction of people that heard the siren,<br>grouped by their angle towards the closest siren",
+        title="Fraction of people that heard the siren,<br>grouped by their angle towards the\
+            closest siren",
     )
     fig.update_layout(
         legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="left", x=0)
     )
     fig.show()
     print(
-        "(iii) Does the direction towards the nearest horn affect whether a person hears the siren or not?"
+        "(iii) Does the direction towards the nearest horn affect whether a person hears the \
+            siren or not?"
     )
     print(
-        "While it might be plausible that the direction towards the closest siren, combined with eg the wind direction, have an impact on the chance of hearing the siren, this cannot be observed in the data."
+        "While it might be plausible that the direction towards the closest siren, combined \
+            with eg the wind direction, have an impact on the chance of hearing the siren, \
+                this cannot be observed in the data."
     )
 
 
