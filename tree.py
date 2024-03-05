@@ -15,10 +15,10 @@ from sklearn.metrics import accuracy_score
 # CONTROL VARIABLES/OBJECTS ###################################################
 # Bagging/random forest params
 DATA_FRACTION = 1	# Only used for testing purposes
-ENSEMBLE_SIZE = 5
+ENSEMBLE_SIZE = 1
 BAGGING_RATIO = 1
 NUM_POINTS = 10
-max_features = 'sqrt' #'sqrt' # sqrt or None
+max_features = None#'sqrt' #'sqrt' # sqrt or None
 
 # Decision tree params
 depth = 3
@@ -30,9 +30,10 @@ test = True
 feature_selection = False
 
 
-perf_v_depth = True
+perf_v_depth = False
 perf_v_bag_ratio = False
-perf_v_ensemble_size = False
+perf_v_ensemble_size = True
+random_search = False
 
 # Fixed random seed for reproducibility
 seed = 12345
@@ -109,8 +110,8 @@ class Tree(Node):
 	Current implementation does not support regression or more than two classes,
 	i.e. not a CART algorithm."""
 	features = {}
-
 	gains = {}
+
 	def __init__(self,
 		data,
 		label,
@@ -134,8 +135,8 @@ class Tree(Node):
 		self.pi = self.relative_occurrence(self.X[self.label])
 		self.parent_entropy = self.shannon_entropy(self.pi)
 		self.N = len(self.X.index)
-		#print('dataset entropy =', self.parent_entropy)
 
+		# Resets counters only when MAX_DEPTH is assigned
 		if MAX_DEPTH is None:
 			pass
 		else:
@@ -175,7 +176,7 @@ class Tree(Node):
 				self.leaf = CLASSIFICATION
 				Node.leaf_count += 1
 
-			# If no leaf, trey split
+			# If no leaf, node splits
 			else:
 				try:
 					self.condition, split = self.optimise_split(self.X, self.label)
@@ -238,7 +239,6 @@ class Tree(Node):
 
 		# Label counts
 		class_counts = labels.value_counts()
-		#print(class_counts)
 		
 		# Label at max count
 		CLASSIFICATION = class_counts.idxmax()
@@ -254,7 +254,7 @@ class Tree(Node):
 		data = copy.deepcopy(data)
 		gains = {}
 		
-		# Using sqrt and bagging results in a random forest	
+		# Using sqrt/log and bagging results in a random forest	
 		if self.max_features is None:
 			pass
 		else:
@@ -262,26 +262,34 @@ class Tree(Node):
 			tmp_attr.remove(label)
 			d = len(data.columns)
 
+			# Label is dropped, random attributes selected
 			if self.max_features == 'sqrt':
 				k = math.ceil(np.sqrt(d))
 			elif self.max_features == 'log':
 				k = math.ceil(np.log2(d))
 			random_attributes = list(np.random.choice(tmp_attr, k, replace=False))
 			random_attributes.append(label)
-			# data = data[random_attributes]
 
-		# Attempt splits
-		for attribute in random_attributes:
+			# Takes only data from random attributes and label
+			data = data[random_attributes]
+
+		# Attempt splits for each attribute and record information gain
+		for attribute in data.columns:
 			if attribute != label:
 				attribute_realisations = data[attribute]
 
 				# Boolean attributes
 				if attribute_realisations.dtype == bool:
 					splits = data.groupby(attribute)
+
 					GAIN = self.parent_entropy
 					tmp = {}
 					for s in splits.groups:
 						split = splits.get_group(s)
+
+						# Binary variables are dropped on split
+						split.pop(attribute)
+
 						classifications = split[label]
 						pi = self.relative_occurrence(classifications)
 						n_split = len(classifications)
@@ -331,6 +339,7 @@ class Tree(Node):
 
 		# One-dimensional classification
 		if isinstance(test_data, pd.Series):
+
 			# Classify each sample in the dataset
 			for row, s in test_data.items():
 
@@ -341,8 +350,8 @@ class Tree(Node):
 					# Initial node is self
 					if count == 0:
 
-						# If current node is not leaf, pass to left/right depending
-						# on current nodes split condition
+						# If current node is not leaf, pass to left/right 
+						# depending on current nodes split condition
 						prediction = self.leaf
 						if prediction is not None:
 							tmp[row] = prediction
@@ -350,7 +359,6 @@ class Tree(Node):
 						else:
 							# Get attribute and condition
 							split_attribute, condition = self.condition
-							#s = getattr(sample, split_attribute)
 
 							# Pass through split
 							if (type(s) == float) or (type(s) == int):
@@ -364,8 +372,8 @@ class Tree(Node):
 								else:
 									branch = self.right
 					else:
-						# If current node is not leaf, pass to left/right depending
-						# on current nodes split condition
+						# If current node is not leaf, pass to left/right 
+						# depending on current nodes split condition
 						prediction = branch.leaf
 						if prediction is not None:
 							tmp[row] = prediction
@@ -373,7 +381,6 @@ class Tree(Node):
 						else:
 							# Get attribute and condition
 							split_attribute, condition = branch.condition
-							#s = getattr(sample, split_attribute)
 
 							# Pass through split
 							if (type(s) == float) or (type(s) == int):
@@ -392,65 +399,6 @@ class Tree(Node):
 		elif isinstance(test_data, pd.DataFrame):
 
 			# Classify each sample in the dataset
-			"""
-			for _ in test_data.iterrows():
-				row, sample = _
-				#print(sample)
-				
-				RUN_PREDICTION = True
-				count = 0
-				while RUN_PREDICTION:
-
-					# Initial node is self
-					if count == 0:
-
-						# If current node is not leaf, pass to left/right depending
-						# on current nodes split condition
-						prediction = self.leaf
-						if prediction is not None:
-							tmp[row] = prediction
-							RUN_PREDICTION = False
-						else:
-							# Get attribute and condition
-							split_attribute, condition = self.condition
-							s = sample[split_attribute]
-
-							# Pass through split
-							if (type(s) == float) or (type(s) == int):
-								if s >= condition:
-									branch = self.left
-								else:
-									branch = self.right
-							elif type(s) == bool:
-								if s:
-									branch = self.left
-								else:
-									branch = self.right
-					else:
-						# If current node is not leaf, pass to left/right depending
-						# on current nodes split condition
-						prediction = branch.leaf
-						if prediction is not None:
-							tmp[row] = prediction
-							RUN_PREDICTION = False
-						else:
-							# Get attribute and condition
-							split_attribute, condition = branch.condition
-							s = sample[split_attribute]
-
-							# Pass through split
-							if (type(s) == float) or (type(s) == int):
-								if s > condition:
-									branch = branch.left
-								else:
-									branch = branch.right
-							elif type(s) == bool:
-								if s:
-									branch = branch.left
-								else:
-									branch = branch.right
-					count += 1
-			"""
 			for sample in test_data.itertuples():
 				row = sample.index
 				
@@ -461,8 +409,8 @@ class Tree(Node):
 					# Initial node is self
 					if count == 0:
 
-						# If current node is not leaf, pass to left/right depending
-						# on current nodes split condition
+						# If current node is not leaf, pass to left/right 
+						# depending on current nodes split condition
 						prediction = self.leaf
 						if prediction is not None:
 							tmp[row] = prediction
@@ -484,8 +432,8 @@ class Tree(Node):
 								else:
 									branch = self.right
 					else:
-						# If current node is not leaf, pass to left/right depending
-						# on current nodes split condition
+						# If current node is not leaf, pass to left/right 
+						# depending on current nodes split condition
 						prediction = branch.leaf
 						if prediction is not None:
 							tmp[row] = prediction
@@ -526,7 +474,6 @@ def evaluate(truth, prediction, print_matrix=False, positive_rate=True):
 			confusion_matrix[1][0] += 1
 		elif (i == False) and (j == False):
 			confusion_matrix[1][1] += 1
-	#print(confusion_matrix)
 
 	# Results
 	if print_matrix: print(confusion_matrix)
@@ -578,6 +525,7 @@ def classification_tree(
 		)
 		tree.grow()
 		
+		# Tree characteristics output
 		nodes, leaves = tree.node_count, tree.leaf_count
 		print('Nodes: ',nodes)
 		print('Leaves: ', leaves)
@@ -586,20 +534,11 @@ def classification_tree(
 		train_predict = tree.predict(train)
 		MISCLASSIFICATION_RATE_TRAIN = evaluate(train[label], train_predict, positive_rate=False)
 		train_bag.append(MISCLASSIFICATION_RATE_TRAIN)
-		
+
 		# Test predict: predict using cumulative model
 		test_predict = tree.predict(test)
 		test_bag.append(test_predict)
 
-		# OLD
-		### Naive model (always predicts true): using cumulative model
-		#y_naive = pd.Series(np.ones(NUM_ROWS)).astype(bool)
-		#naive_test = copy.deepcopy(test)
-		#naive_test[label] = y_naive
-		#naive_predict = tree.predict(naive_test)
-		#naive_bag.append(naive_predict)
-		
-		# NEW (FRESH)
 		# Fitting
 		naive_train = copy.deepcopy(train)
 		naive_train = naive_train[[naive_attribute, label]]
@@ -615,11 +554,6 @@ def classification_tree(
 		)
 		tree.grow()
 
-		# Naive model (only splits): using cumulative model
-		#y_naive = naive_test.pop(label)
-		#print(naive_test)
-
-		# THRESHOLD MUST BE INCLUDED
 		naive_predict = tree.predict(naive_test)
 		naive_bag.append(naive_predict)
 
@@ -644,21 +578,21 @@ def classification_tree(
 	sklearn_misclass_test = 1-accuracy_score(y_test, predictions)
 	predictions = clf.predict(train)
 	sklearn_misclass_train = 1-accuracy_score(y_train, predictions)
-		
-	#tree.plot_tree(clf)
-	#plt.savefig('C:/Users/viksv814/Documents/courses/sml/project/Figure_1.pdf', format='pdf')
-	
-	
+
+
 	print('Pooling...')
 	test_bag_df = pd.DataFrame(np.array(test_bag).T)
+	#train_bag_df = pd.DataFrame(np.array(train_bag).T)
 	naive_bag_df = pd.DataFrame(np.array(naive_bag).T)
+	#majority_prediction_train = train_bag_df.mode(axis=1)[0]
 	majority_prediction_test = test_bag_df.mode(axis=1)[0]
 	majority_prediction_naive = naive_bag_df.mode(axis=1)[0]
-	
 
 
 	print('Evaluating performance...')
+	
 	#Train data
+	print(train_bag)
 	MISCLASSIFICATION_RATE_TRAIN = np.average(train_bag)
 	print('Train:')
 	print(f'  Misclassification rate:\t\t{MISCLASSIFICATION_RATE_TRAIN:.4f}\t({sklearn_misclass_train:.4f} using sklearn)\n')
@@ -723,8 +657,45 @@ elif feature_selection:
 
 
 else:
+	# Random search functionality for two parameters.
+	if random_search:
+		print('Performing a random search...')
+		depths = np.random.randint(1, depth, NUM_POINTS)
+		sizes = np.random.randint(2, ENSEMBLE_SIZE, NUM_POINTS)
+		
+		data = {'depth':depths, 'ensemble size':sizes}
+		df = pd.DataFrame(data)
+
+		# Random search
+		for d, s in zip(depths, sizes):
+			misclass_rates, p_rates, tree = classification_tree(
+				train_df,
+				test_df, 
+				'heard', 
+				BAGGING_RATIO, 
+				d, 
+				s, 
+				max_features=max_features
+			)
+			train_rate, test_rate, naive_rate = misclass_rates
+			test_pr, naive_pr = p_rates
+			test[s] = [test_rate, test_pr]
+		
+		# Results
+		test_rates = [result[0] for result in test.values()]
+		df['test error'] = test_rates
+		
+		# Get params where test error is lowest
+		optimal_params = df[df['test error']==df['test error'].min()]
+
+		print('Random search:')
+		print(df)
+		print('\nOptimal settings:')
+		print(optimal_params)
+
 	# Performance dependence on ensemble size
-	if perf_v_ensemble_size:
+	elif perf_v_ensemble_size:
+		
 		# Evaluate per size
 		sizes = np.arange(ENSEMBLE_SIZE)+1
 
@@ -733,6 +704,7 @@ else:
 			np.random.seed(seed)
 			print(seed)
 		else:
+			pass
 			np.random.randint(seed)
 
 		train, test, naive = {}, {}, {}
@@ -790,8 +762,8 @@ else:
 		train, test, naive = {}, {}, {}
 		for ratio in ratios:
 			print(f'EVALUATING RATIO: {ratio}')
-			# Setting the same seed each time allows the fitting to reach the same
-			# points when re-run for an increasing maximum depth
+			# Setting the same seed each time allows the fitting to reach the 
+			# same points when re-run for an increasing maximum depth
 			np.random.seed(seed)
 
 			# Fitting and evaluating performance
@@ -839,8 +811,8 @@ else:
 		train, test, naive = {}, {}, {}
 		for d in range(1,depth):
 			print(f'EVALUATING DEPTH: {d}')
-			# Setting the same seed each time allows the fitting to reach the same
-			# points when re-run for an increasing maximum depth
+			# Setting the same seed each time allows the fitting to reach the 
+			# same points when re-run for an increasing maximum depth
 			np.random.seed(seed)
 
 			# Fitting and evaluating performance
